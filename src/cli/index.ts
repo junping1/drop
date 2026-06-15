@@ -111,7 +111,7 @@ program
   .option('--port <port>', 'Port to listen on', String(DEFAULT_PORT))
   .option('--host <host>', 'Host to bind to', DEFAULT_HOST)
   .option('--foreground', 'Run in foreground (no auto-stop timer)', false)
-  .option('--tunnel', 'Start a cloudflared Quick Tunnel', false)
+  .option('--tunnel', 'Reserved for future built-in tunnel support; currently run cloudflared/ngrok manually', false)
   .action(async (opts) => {
     ensureStateDir();
     writePid();

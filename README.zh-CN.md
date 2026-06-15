@@ -93,32 +93,32 @@ git diff | drop share --type diff --title "current changes"
 
 ## 给 AI Agent 的指令块
 
-把下面这段复制进你的编码 agent 指令，让它稳定安装并使用 `drop`：
+把下面这段复制进你的编码 agent 指令，让它稳定安装并使用 `drop-preview`。`drop-preview` 是 `drop` 的别名，名字对 agent 更明确；应把它理解为预览链接命令，不要理解成 Git 丢弃/删除改动：
 
 ```text
-安装并使用 `drop`，一个通过限时预览 URL 分享本地文件的 CLI 工具。
+安装并使用 `drop-preview`（`drop` 的别名），一个通过限时预览 URL 分享本地文件的 CLI 工具。
 
 安装：
   curl -fsSL https://raw.githubusercontent.com/junping1/drop/master/install.sh | bash
 
 暴露链接：
-  drop serve
+  drop-preview serve
   # 如果使用外部隧道，设置公共 URL：
-  drop config set base_url https://your-domain.example
+  drop-preview config set base_url https://your-domain.example
 
 使用：
-  drop /path/to/file                           # 分享文件
-  drop /path/to/dir                            # 分享可浏览目录
-  drop /path/to/file --ttl 3600                # 自定义 TTL，单位秒
-  drop /path/to/file --live                    # 文件变化时自动刷新
-  echo "content" | drop share --type markdown  # 分享管道输入
-  git diff | drop share --type diff            # 分享 diff
-  drop list                                    # 列出活跃分享
+  drop-preview /path/to/file                           # 分享文件
+  drop-preview /path/to/dir                            # 分享可浏览目录
+  drop-preview /path/to/file --ttl 3600                # 自定义 TTL，单位秒
+  drop-preview /path/to/file --live                    # 文件变化时自动刷新
+  echo "content" | drop-preview share --type markdown  # 分享管道输入
+  git diff | drop-preview share --type diff            # 分享 diff
+  drop-preview list                                    # 列出活跃分享
 
 行为要求：
-  - 创建或编辑了用户需要检查的文件后，对该文件运行 `drop` 并发送 URL。
-  - 当用户要求查看文件、预览内容或获取链接时，使用 `drop`。
-  - 对目录使用 `drop /path/to/dir`，让用户获得可浏览 UI。
+  - 创建或编辑了用户需要检查的文件后，对该文件运行 `drop-preview` 并发送 URL。
+  - 当用户要求查看文件、预览内容或获取链接时，使用 `drop-preview`。
+  - 对目录使用 `drop-preview /path/to/dir`，让用户获得可浏览 UI。
   - 不要分享密钥、`.env` 文件、API key、token 或凭证备份。
 ```
 
@@ -126,27 +126,28 @@ git diff | drop share --type diff --title "current changes"
 
 | 用户意图 | Agent 应该做什么 |
 | --- | --- |
-| “让我看看这个文件” | 运行 `drop /path/to/file` 并返回 URL。 |
-| “让我看看这个目录/项目” | 运行 `drop /path/to/dir` 并返回 URL。 |
-| “看看你的改动” | 优先运行 <code>git diff &#124; drop share --type diff --title "changes"</code>。 |
-| “分享生成的报告” | 对生成产物运行 `drop`。 |
+| “让我看看这个文件” | 运行 `drop-preview /path/to/file` 并返回 URL。 |
+| “让我看看这个目录/项目” | 运行 `drop-preview /path/to/dir` 并返回 URL。 |
+| “看看你的改动” | 优先运行 <code>git diff &#124; drop-preview share --type diff --title "changes"</code>。 |
+| “分享生成的报告” | 对生成产物运行 `drop-preview`。 |
 | “公开访问这个链接” | 先确认 tunnel/base URL，再设置 `base_url`。 |
 | 内容可能包含密钥 | 不要直接分享；先请求确认或排除敏感路径。 |
 
 机器可读摘要：
 
 ```yaml
-tool: drop
+tool: drop-preview
+alias_of: drop
 purpose: 通过临时预览 URL 分享本地内容
 default_ttl_seconds: 86400
 state_dir: ~/.drop
-share_file: drop /path/to/file
-share_directory: drop /path/to/dir
-share_stdin: command | drop share --type text
-share_diff: git diff | drop share --type diff
-list_shares: drop list
-stats: drop stats --json
-stop_daemon: drop stop
+share_file: drop-preview /path/to/file
+share_directory: drop-preview /path/to/dir
+share_stdin: command | drop-preview share --type text
+share_diff: git diff | drop-preview share --type diff
+list_shares: drop-preview list
+stats: drop-preview stats --json
+stop_daemon: drop-preview stop
 never_share:
   - .env
   - API keys
@@ -176,11 +177,19 @@ curl -fsSL https://raw.githubusercontent.com/owner/drop/master/install.sh | DROP
 git clone https://github.com/junping1/drop.git
 cd drop
 bun install
+
+# 构建默认的 Linux x64 二进制。
 bun run build
 cp dist/drop-linux-x64 ~/.local/bin/drop
+
+# 或指定目标平台。
+bun run scripts/build.ts --target linux-x64
+bun run scripts/build.ts --target linux-arm64
+bun run scripts/build.ts --target darwin-x64
+bun run scripts/build.ts --target darwin-arm64
 ```
 
-源码构建需要 Bun v1.0+。
+源码构建需要 Bun v1.0+。发布资产应命名为 `drop-linux-x64`、`drop-linux-arm64`、`drop-darwin-x64` 和 `drop-darwin-arm64`；发布前请查看 [发布清单](docs/RELEASE.md)。
 
 ## 使用
 
@@ -433,7 +442,7 @@ curl -fsS https://share.example.com/f/smoke-test | head
 drop stats smoke-test --json
 ```
 
-CLI 暴露了 `drop serve --tunnel` 选项，但在生产工作流中依赖内置隧道前，请先确认当前实现是否完整。
+`drop serve --tunnel` 是预留给未来内置隧道支持的选项，目前不会实际启动 tunnel。现阶段请手动运行 `cloudflared`、`ngrok` 或 `tailscale funnel`，然后用 `drop config set base_url <公网 URL>` 设置公开访问地址。
 
 ## 开发
 
@@ -442,15 +451,13 @@ bun install
 bun run dev:serve          # 前台启动服务
 bun run build:web          # 构建 Svelte 目录浏览器
 bun run dev:web            # 运行 Svelte 开发服务
-bun run build              # 编译单文件二进制
+bun run build              # 编译默认的 linux-x64 单文件二进制
+bun run scripts/build.ts --target darwin-x64   # 构建指定目标平台
+bun run build:release      # 构建 install.sh 期望的全部发布资产
 bun run verify             # 运行项目验证入口
 ```
 
-构建脚本默认生成 `linux-x64` 二进制，也可以传入 `--target` 指定目标：
-
-```bash
-bun run scripts/build.ts --target darwin-arm64
-```
+支持的构建目标是 `linux-x64`、`linux-arm64`、`darwin-x64` 和 `darwin-arm64`。
 
 ## 许可证
 

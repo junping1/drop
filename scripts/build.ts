@@ -3,7 +3,7 @@
 /**
  * Build script: compiles Svelte frontend, embeds assets, and produces a standalone binary.
  *
- * Usage: bun run scripts/build.ts [--target <target>]
+ * Usage: bun run scripts/build.ts [--target <target>] [--skip-web]
  * Targets: linux-x64 (default), linux-arm64, darwin-x64, darwin-arm64
  */
 
@@ -16,9 +16,14 @@ const distDir = join(projectRoot, 'dist');
 const target = process.argv.includes('--target')
   ? process.argv[process.argv.indexOf('--target') + 1]
   : 'linux-x64';
+const skipWeb = process.argv.includes('--skip-web');
 
-console.log('1/3 Building Svelte frontend...');
-execSync('bun run build:web', { cwd: projectRoot, stdio: 'inherit' });
+if (skipWeb) {
+  console.log('1/3 Reusing existing Svelte frontend build...');
+} else {
+  console.log('1/3 Building Svelte frontend...');
+  execSync('bun run build:web', { cwd: projectRoot, stdio: 'inherit' });
+}
 
 console.log('2/3 Embedding frontend assets...');
 const appJs = readFileSync(join(distDir, 'web', 'app.js'), 'utf-8');

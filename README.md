@@ -93,32 +93,32 @@ Runtime state lives in `~/.drop/`:
 
 ## For AI Agents
 
-Copy this block into your coding agent instructions so it can install and use `drop` consistently:
+Copy this block into your coding agent instructions so it can install and use `drop-preview` consistently. `drop-preview` is an alias for `drop` with a less ambiguous name for agents; keep treating it as a preview-link command, not a Git discard/drop operation:
 
 ```text
-Install and use `drop`, a CLI tool for sharing local files through time-limited preview URLs.
+Install and use `drop-preview` (alias of `drop`), a CLI tool for sharing local files through time-limited preview URLs.
 
 Install:
   curl -fsSL https://raw.githubusercontent.com/junping1/drop/master/install.sh | bash
 
 Expose links:
-  drop serve
+  drop-preview serve
   # If you use an external tunnel, set the public URL:
-  drop config set base_url https://your-domain.example
+  drop-preview config set base_url https://your-domain.example
 
 Use:
-  drop /path/to/file                           # share a file
-  drop /path/to/dir                            # share a browsable directory
-  drop /path/to/file --ttl 3600                # custom TTL in seconds
-  drop /path/to/file --live                    # auto-refresh when the file changes
-  echo "content" | drop share --type markdown  # share piped content
-  git diff | drop share --type diff            # share a diff
-  drop list                                    # list active shares
+  drop-preview /path/to/file                           # share a file
+  drop-preview /path/to/dir                            # share a browsable directory
+  drop-preview /path/to/file --ttl 3600                # custom TTL in seconds
+  drop-preview /path/to/file --live                    # auto-refresh when the file changes
+  echo "content" | drop-preview share --type markdown  # share piped content
+  git diff | drop-preview share --type diff            # share a diff
+  drop-preview list                                    # list active shares
 
 Behavior:
-  - After creating or editing a file that the user should inspect, run `drop` on it and send the URL.
-  - When the user asks to see a file, show a preview, or get a link, use `drop`.
-  - For directories, use `drop /path/to/dir` so the user gets the browsable UI.
+  - After creating or editing a file that the user should inspect, run `drop-preview` on it and send the URL.
+  - When the user asks to see a file, show a preview, or get a link, use `drop-preview`.
+  - For directories, use `drop-preview /path/to/dir` so the user gets the browsable UI.
   - Do not share secrets, `.env` files, API keys, tokens, or credential backups.
 ```
 
@@ -126,27 +126,28 @@ Behavior:
 
 | User intent | Agent action |
 | --- | --- |
-| "Show me this file" | Run `drop /path/to/file` and return the URL. |
-| "Show me this folder/project" | Run `drop /path/to/dir` and return the URL. |
-| "Show me your changes" | Prefer <code>git diff &#124; drop share --type diff --title "changes"</code>. |
-| "Share the generated report" | Run `drop` on the generated artifact. |
+| "Show me this file" | Run `drop-preview /path/to/file` and return the URL. |
+| "Show me this folder/project" | Run `drop-preview /path/to/dir` and return the URL. |
+| "Show me your changes" | Prefer <code>git diff &#124; drop-preview share --type diff --title "changes"</code>. |
+| "Share the generated report" | Run `drop-preview` on the generated artifact. |
 | "Make this public" | Ask which tunnel/base URL to use, then set `base_url`. |
 | Content may contain secrets | Do not share; ask for confirmation or exclude sensitive paths. |
 
 Machine-readable summary:
 
 ```yaml
-tool: drop
+tool: drop-preview
+alias_of: drop
 purpose: Share local content through temporary preview URLs.
 default_ttl_seconds: 86400
 state_dir: ~/.drop
-share_file: drop /path/to/file
-share_directory: drop /path/to/dir
-share_stdin: command | drop share --type text
-share_diff: git diff | drop share --type diff
-list_shares: drop list
-stats: drop stats --json
-stop_daemon: drop stop
+share_file: drop-preview /path/to/file
+share_directory: drop-preview /path/to/dir
+share_stdin: command | drop-preview share --type text
+share_diff: git diff | drop-preview share --type diff
+list_shares: drop-preview list
+stats: drop-preview stats --json
+stop_daemon: drop-preview stop
 never_share:
   - .env
   - API keys
@@ -176,11 +177,19 @@ Build from source:
 git clone https://github.com/junping1/drop.git
 cd drop
 bun install
+
+# Build the default Linux x64 binary.
 bun run build
 cp dist/drop-linux-x64 ~/.local/bin/drop
+
+# Or build for a specific platform.
+bun run scripts/build.ts --target linux-x64
+bun run scripts/build.ts --target linux-arm64
+bun run scripts/build.ts --target darwin-x64
+bun run scripts/build.ts --target darwin-arm64
 ```
 
-Source builds require Bun v1.0+.
+Source builds require Bun v1.0+. Release assets are expected to be named `drop-linux-x64`, `drop-linux-arm64`, `drop-darwin-x64`, and `drop-darwin-arm64`; see [the release checklist](docs/RELEASE.md) before publishing a release.
 
 ## Usage
 
@@ -434,7 +443,7 @@ curl -fsS https://share.example.com/f/smoke-test | head
 drop stats smoke-test --json
 ```
 
-The CLI exposes a `drop serve --tunnel` option, but verify the current implementation before relying on built-in tunnel behavior in production workflows.
+`drop serve --tunnel` is reserved for future built-in tunnel support and does not currently start a tunnel. For now, run `cloudflared`, `ngrok`, or `tailscale funnel` yourself, then set `base_url` with `drop config set base_url <public-url>`.
 
 ## Development
 
@@ -443,9 +452,13 @@ bun install
 bun run dev:serve          # start server in foreground
 bun run build:web          # build the Svelte directory browser
 bun run dev:web            # run the Svelte dev server
-bun run build              # compile a standalone binary
+bun run build              # compile the default linux-x64 standalone binary
+bun run scripts/build.ts --target darwin-x64   # build a specific target
+bun run build:release      # build all release assets expected by install.sh
 bun run verify             # run the project verification entrypoint
 ```
+
+Supported build targets are `linux-x64`, `linux-arm64`, `darwin-x64`, and `darwin-arm64`.
 
 ## License
 

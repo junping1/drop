@@ -4,16 +4,11 @@
 
 import hljs from 'highlight.js';
 import { readFileSync } from 'fs';
-import { extname, basename, dirname, join } from 'path';
-import { createRequire } from 'module';
+import { extname, basename } from 'path';
+import darkCss from 'highlight.js/styles/github-dark.css' with { type: 'text' };
+import lightCss from 'highlight.js/styles/github.css' with { type: 'text' };
 import { getFileMeta } from '../../shared/fs.js';
 import { codePageHtml } from './html-templates.js';
-
-// Load highlight.js theme CSS files
-const require2 = createRequire(import.meta.url);
-const hljsPath = dirname(require2.resolve('highlight.js/package.json'));
-const darkCss = readFileSync(join(hljsPath, 'styles/github-dark.css'), 'utf-8');
-const lightCss = readFileSync(join(hljsPath, 'styles/github.css'), 'utf-8');
 
 /**
  * Returns CSS for both dark and light themes using prefers-color-scheme.
