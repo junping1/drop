@@ -48,6 +48,15 @@ function shellQuote(value: string): string {
   return "'" + value.replace(/'/g, "'\"'\"'") + "'";
 }
 
+/**
+ * Build the `sh -c` command that launches the daemon detached from the parent's
+ * controlling terminal and stdin. `nohup` + `< /dev/null` ensure the compiled
+ * binary keeps running after the foreground `drop` command exits.
+ */
+export function buildDaemonShellCommand(args: string[], logPath: string): string {
+  return `nohup ${args.map(shellQuote).join(' ')} >> ${shellQuote(logPath)} 2>&1 < /dev/null &`;
+}
+
 async function waitForHealth(port: number, timeoutMs = 1500): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -71,7 +80,7 @@ export async function startDaemon(port: number, host = DEFAULT_HOST): Promise<vo
   // (for example "allow"). Use execPath so auto-start does not accidentally
   // spawn `bun serve`, which Bun interprets as a package script.
   const args = buildDaemonArgs(process.execPath, process.argv[1], port, host);
-  const shellCommand = `nohup ${args.map(shellQuote).join(' ')} >> ${shellQuote(LOG_PATH)} 2>&1 < /dev/null &`;
+  const shellCommand = buildDaemonShellCommand(args, LOG_PATH);
 
   const proc = Bun.spawn(['sh', '-c', shellCommand], {
     stdout: 'ignore',
