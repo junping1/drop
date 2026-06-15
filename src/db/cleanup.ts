@@ -1,6 +1,7 @@
 import { existsSync, unlinkSync, readdirSync } from 'fs';
 import { getDb } from './index.js';
 import { deleteShareAliasesForToken } from './share-aliases.js';
+import { deleteAccessEventsForToken } from './access-events.js';
 import {
   SHARES_DIR,
   STATUS_ACTIVE, STATUS_EXPIRED,
@@ -26,6 +27,7 @@ export function cleanupExpiredShares(): void {
     }
     db.query('DELETE FROM authorizations WHERE token = ?').run(row.token);
     deleteShareAliasesForToken(row.token);
+    deleteAccessEventsForToken(row.token);
   }
 }
 

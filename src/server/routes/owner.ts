@@ -11,7 +11,10 @@ import { setOwnerCookie, safeCompare, checkOwnerAuth } from '../middleware/auth.
 const ownerRoutes = new Hono();
 
 function checkOwnerApiAuth(c: any): boolean {
-  const key = c.req.query('key') || '';
+  // Accept the owner key only via header (not query string) so the master
+  // secret can't leak into server access logs, browser history, or Referer
+  // headers. Cookie auth (set via /owner/auth or /dashboard?key=) also works.
+  const key = c.req.header('x-owner-key') || '';
   if (key && safeCompare(key, getOwnerKey())) return true;
   return checkOwnerAuth(c);
 }

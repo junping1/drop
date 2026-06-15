@@ -32,6 +32,17 @@ describe('owner-only stats API', () => {
     }
   });
 
+  test('rejects the owner key passed via query string (header-only)', async () => {
+    const root = withTempDb();
+    try {
+      const key = getOwnerKey();
+      const res = await app.fetch(new Request(`http://drop.test/api/stats?key=${key}`));
+      expect(res.status).toBe(403);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('returns aggregate and per-token stats for authenticated owners without counting api routes as views', async () => {
     const root = withTempDb();
     try {
@@ -40,13 +51,13 @@ describe('owner-only stats API', () => {
       recordAccessEvent({ token: 'tok-b', shareType: 'dir', eventType: 'raw_view', success: true, ip: '2.2.2.2' });
       const key = getOwnerKey();
 
-      const all = await app.fetch(new Request(`http://drop.test/api/stats?key=${key}`));
+      const all = await app.fetch(new Request('http://drop.test/api/stats', { headers: { 'x-owner-key': key } }));
       expect(all.status).toBe(200);
       const allJson = await all.json() as any;
       expect(allJson.totals.views).toBe(2);
       expect(allJson.tokens).toHaveLength(2);
 
-      const one = await app.fetch(new Request(`http://drop.test/api/stats/tok-a?key=${key}`));
+      const one = await app.fetch(new Request('http://drop.test/api/stats/tok-a', { headers: { 'x-owner-key': key } }));
       expect(one.status).toBe(200);
       expect(await one.json()).toMatchObject({ token: 'tok-a', views: 1, unique: 1 });
     } finally {
@@ -64,7 +75,7 @@ describe('owner-only stats API', () => {
       recordAccessEvent({ token, shareType: 'file', eventType: 'page_view', success: true, ip: '1.1.1.1' });
 
       const key = getOwnerKey();
-      const res = await app.fetch(new Request(`http://drop.test/api/stats/api-stats-note?key=${key}`));
+      const res = await app.fetch(new Request('http://drop.test/api/stats/api-stats-note', { headers: { 'x-owner-key': key } }));
       expect(res.status).toBe(200);
       expect(await res.json()).toMatchObject({ token, views: 1, unique: 1 });
     } finally {
