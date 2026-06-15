@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { DirEntry, FilePreviewData } from '../lib/types';
-  import { fetchFile, prefetch, getCached } from '../lib/api';
+  import { fetchFile, fetchGitInfo, prefetch, getCached } from '../lib/api';
   import SearchBox from './SearchBox.svelte';
   import FileTree from './FileTree.svelte';
   import Preview from './Preview.svelte';
+  import CommitsTab from './CommitsTab.svelte';
 
   interface Props {
     token: string;
@@ -22,6 +23,8 @@
   let previewError = $state('');
   let searchQuery = $state('');
   let sidebarOpen = $state(false);
+  let activeTab = $state<'files' | 'commits'>('files');
+  let isGitRepo = $state(false);
 
   // Mobile: 'list' | 'preview'
   let mobileView = $state<'list' | 'preview'>('list');
@@ -56,6 +59,7 @@
 
     if (currentFile === relPath) return;
     currentFile = relPath;
+    activeTab = 'files';
     closeSidebar();
     mobileView = 'preview';
 
@@ -111,6 +115,26 @@
   function handleMobileBack() {
     mobileView = 'list';
   }
+
+  function showFilesTab() {
+    activeTab = 'files';
+  }
+
+  function showCommitsTab() {
+    activeTab = 'commits';
+    closeSidebar();
+    mobileView = 'preview';
+  }
+
+  $effect(() => {
+    fetchGitInfo(token, basePath)
+      .then((info) => {
+        isGitRepo = info.is_git_repo;
+      })
+      .catch(() => {
+        isGitRepo = false;
+      });
+  });
 
   // Handle popstate (browser back/forward)
   $effect(() => {
@@ -200,6 +224,12 @@
 <div class="header">
   <button class="menu-btn" onclick={toggleSidebar} aria-label="Toggle sidebar">&#9776;</button>
   <span class="dirname">{dirname}</span>
+  {#if isGitRepo}
+    <div class="dir-tabs" role="tablist" aria-label="Directory views">
+      <button class="dir-tab" class:active={activeTab === 'files'} role="tab" aria-selected={activeTab === 'files'} onclick={showFilesTab}>Files</button>
+      <button class="dir-tab" class:active={activeTab === 'commits'} role="tab" aria-selected={activeTab === 'commits'} onclick={showCommitsTab}>Commits</button>
+    </div>
+  {/if}
   <span class="shared-badge">
     <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M8 1a4 4 0 00-4 4v2H3a1 1 0 00-1 1v6a1 1 0 001 1h10a1 1 0 001-1V8a1 1 0 00-1-1h-1V5a4 4 0 00-4-4zm2.5 6H5.5V5a2.5 2.5 0 015 0v2z"/></svg>
     shared
@@ -230,23 +260,69 @@
     />
   </nav>
   <main class="preview-pane">
-    {#if mobileView === 'preview' && currentFile}
+    {#if mobileView === 'preview' && (currentFile || activeTab === 'commits')}
       <div class="mobile-back-bar">
         <button class="mobile-back-btn" onclick={handleMobileBack} aria-label="Back to file list">
           <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path fill-rule="evenodd" d="M7.78 12.53a.75.75 0 01-1.06 0L2.47 8.28a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 1.06L4.81 7h7.44a.75.75 0 010 1.5H4.81l2.97 2.97a.75.75 0 010 1.06z"/></svg>
         </button>
-        <span class="mobile-back-filename">{currentFileName}</span>
+        <span class="mobile-back-filename">{activeTab === 'commits' ? 'Commits' : currentFileName}</span>
       </div>
     {/if}
-    <Preview
-      data={previewData}
-      relPath={currentFile}
-      {dirname}
-      {tree}
-      loading={previewLoading}
-      error={previewError}
-      onNavigate={handleNavigate}
-      onExpandDir={handleExpandDir}
-    />
+    {#if activeTab === 'commits'}
+      <CommitsTab {token} {basePath} />
+    {:else}
+      <Preview
+        data={previewData}
+        relPath={currentFile}
+        {dirname}
+        {tree}
+        loading={previewLoading}
+        error={previewError}
+        onNavigate={handleNavigate}
+        onExpandDir={handleExpandDir}
+      />
+    {/if}
   </main>
 </div>
+
+<style>
+  .dir-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+  }
+
+  .dir-tab {
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .dir-tab.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .dir-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 768px) {
+    .dir-tabs {
+      margin-left: auto;
+    }
+    .dir-tab {
+      padding: 4px 8px;
+    }
+  }
+</style>

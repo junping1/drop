@@ -250,6 +250,8 @@ drop ~/project/ --slug demo-dir    # 生成可读的 /d/demo-dir URL
 
 默认排除项：所有 dotfile 和隐藏目录，例如 `.env`、`.github/`、`.idea/`、`.nebula-secrets/`，以及 `__pycache__/`、`node_modules/`、`*.pyc`、`.venv/`。只有明确需要分享隐藏文件时才使用 `--include-hidden`；已配置的 `default_excludes` 和显式 `--exclude` 仍然生效。
 
+当分享目录本身是 Git 仓库时，目录浏览页面会额外显示 `Commits` 标签页。该标签页默认只展示最近 5 条 commit，并且只有这 5 条 commit 的 diff 可以从目录分享中打开。Owner 可以在页面内使用 `Owner unlock` 为当前分享临时解锁到最近 100 条 commit，解锁只持续到该分享过期；owner key 通过 POST 提交，不应分享给访客。这样既保持“查看当前项目文件”为主体验，也减少误暴露更早历史的风险。请把 commit 历史视为敏感内容：其中可能包含已删除文件、历史凭证或私有元数据。
+
 ### stdin
 
 ```bash

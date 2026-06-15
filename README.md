@@ -250,6 +250,8 @@ drop ~/project/ --slug demo-dir    # readable /d/demo-dir URL
 
 Default excludes: dotfiles and hidden directories such as `.env`, `.github/`, `.idea/`, and `.nebula-secrets/`, plus `__pycache__/`, `node_modules/`, `*.pyc`, and `.venv/`. Use `--include-hidden` only when you intentionally want hidden files included; configured `default_excludes` and explicit `--exclude` patterns still apply.
 
+When the shared directory is a Git repository, the directory browser also shows a `Commits` tab. It is intentionally limited to the latest 5 commits by default, and only those 5 commits can be opened as diffs from the directory share. The owner can use the in-page `Owner unlock` action to unlock the current share to the latest 100 commits until the share expires; the owner key is submitted by POST and should never be shared with visitors. This keeps the primary experience focused on the current project files while reducing accidental exposure of older history. Treat commit history as sensitive: it may include deleted files, old credentials, or private metadata.
+
 ### Stdin
 
 ```bash

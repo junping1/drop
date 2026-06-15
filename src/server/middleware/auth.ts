@@ -46,6 +46,21 @@ function verifySignedValue(signed: string, secret: string): string | null {
 }
 
 /**
+ * Sign an opaque authorization value with HMAC-SHA256.
+ * This authenticates the value but does not encrypt it.
+ */
+export function signAuthValue(value: string, secret: string): string {
+  return signValue(value, secret);
+}
+
+/**
+ * Verify an HMAC-signed authorization value and return the unsigned value.
+ */
+export function verifyAuthValue(signed: string, secret: string): string | null {
+  return verifySignedValue(signed, secret);
+}
+
+/**
  * Check if request has a valid owner cookie.
  */
 export function checkOwnerAuth(c: Context): boolean {
