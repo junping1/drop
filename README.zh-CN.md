@@ -212,6 +212,9 @@ drop ~/file.py --ttl 300           # 5 分钟后过期
 drop ~/file.py --head 50           # 只显示前 50 行
 drop ~/file.py --tail 50           # 只显示后 50 行
 drop ~/file.py --live              # 文件变化时刷新预览
+drop ~/file.py --qr                # 同时把终端二维码输出到 stderr
+drop ~/file.py --force             # 扫描密钥；即使命中也继续分享
+drop ~/file.py --no-secret-scan    # 跳过分享前密钥扫描
 ```
 
 ### 目录
@@ -221,6 +224,9 @@ drop ~/project/                    # 分享可浏览文件树
 drop ~/project/ --ttl 7200         # 自定义 TTL
 drop ~/project/ --exclude '*.log'  # 添加排除规则
 drop ~/project/ --live             # 目录变化时刷新
+drop ~/project/ --qr               # 同时把终端二维码输出到 stderr
+drop ~/project/ --force            # 扫描密钥；即使命中也继续分享
+drop ~/project/ --no-secret-scan   # 跳过分享前密钥扫描
 ```
 
 默认排除项：`.git/`、`__pycache__/`、`.env`、`node_modules/`、`.DS_Store`、`*.pyc`、`.venv/`。
@@ -231,18 +237,56 @@ drop ~/project/ --live             # 目录变化时刷新
 echo "# Hello" | drop share --type markdown
 git diff | drop share --type diff --title "my changes"
 drop share --content "print('hi')" --type python
+echo "# Hello" | drop share --type markdown --qr
+drop share --content "..." --force --json
+drop share --content "..." --no-secret-scan --json
 ```
 
 支持的类型：`markdown`、`python`、`javascript`、`json`、`yaml`、`html`、`css`、`shell`、`diff`、`code`、`text`。
+
+### 密钥扫描
+
+创建文件、目录、stdin/内联内容或 Git commit 授权前，`drop` 默认会扫描高置信密钥。命中阻断项时不会创建授权；对 stdin 分享，也不会写入临时文件或启动 daemon。
+
+覆盖规则包括私钥、GitHub token、OpenAI/Anthropic API key、Slack token、Stripe live key、Google API key、AWS access key ID、Google service-account JSON，以及 `credentials.json`、`secrets.yaml`、`*.pem`、`*.key`、`.npmrc`、`.netrc` 等敏感文件名。
+
+目录扫描使用与目录分享相同的默认排除项，并叠加 `--exclude`；不会跟随逃出分享目录的 symlink，也会避免 symlink cycle。
+
+覆盖开关：
+
+| 参数 | 行为 |
+| --- | --- |
+| `--force` | 仍然执行扫描，但即使命中也继续分享。JSON 成功输出包含 `secret_scan.forced`、`findings_count` 和脱敏后的 `findings`。 |
+| `--no-secret-scan` | 跳过扫描。JSON 成功输出包含 `secret_scan.disabled`。 |
+
+`--force` 与 `--no-secret-scan` 不能同时使用。密钥扫描输出只包含脱敏字段，例如 `path`、`line`、`rule_id`、`severity`、`fingerprint`，不会输出密钥原文或整行内容。
 
 ### Git Commit
 
 ```bash
 drop allow-git /path/to/repo abc1234
 drop allow-git . HEAD
+drop allow-git . HEAD --qr
+drop allow-git . HEAD --force
+drop allow-git . HEAD --no-secret-scan
 ```
 
 Git commit 分享会渲染 commit 元数据、变更文件列表和可展开的高亮 diff。
+
+### 终端二维码
+
+添加 `--qr` 可为生成的 URL 打印终端二维码。二维码输出到 stderr，因此 stdout 仍保持原始 URL 或可解析 JSON：
+
+```bash
+drop allow ~/file.py --qr
+drop allow ~/project/ --qr
+drop share --content "hello" --type text --qr
+drop allow-git . HEAD --qr
+drop owner-url --qr
+drop allow ~/file.py --json --qr | jq .
+```
+
+如果二维码渲染失败，分享仍会成功，Drop 只会向 stderr 打印 warning。分享命令失败时不会输出二维码。
 
 ## 命令
 
@@ -252,6 +296,9 @@ Git commit 分享会渲染 commit 元数据、变更文件列表和可展开的�
 | `drop allow <path>` | `drop <path>` 的显式形式 |
 | `drop share` | 分享 stdin 或内联文本 |
 | `drop allow-git <repo> <commit>` | 分享 Git commit diff |
+| `drop allow <path> --qr` | 打印分享 URL，并在 stderr 输出终端二维码 |
+| 分享类命令上的 `--force` | 扫描密钥，但命中后仍继续分享 |
+| 分享类命令上的 `--no-secret-scan` | 跳过分享前密钥扫描 |
 | `drop list` | 列出活跃和过期分享 |
 | `drop list --json` | 以 JSON 输出分享列表 |
 | `drop revoke <token>` | 撤销文件、目录或 Git 分享 token |
@@ -297,6 +344,7 @@ drop config get base_url
 - 分享会按 TTL 自动过期。
 - 文件、目录和 Git token 至少为 32 个 hex 字符（128 bit），owner key 为 32 个 hex 字符。
 - 目录访问包含路径穿越校验和 symlink 校验。
+- 文件、目录、stdin/内联内容和 Git commit 分享默认启用分享前密钥扫描；阻断结果只输出脱敏元数据和指纹。
 - 响应包含反爬 header，`robots.txt` 禁止索引。
 - owner 访问使用 HMAC 签名 cookie 和 timing-safe key 比较。
 - 当前限流实现为每个客户端身份每分钟 300 次请求。默认忽略可伪造的代理 header；只有在可信反向代理后面运行并设置 `DROP_TRUST_PROXY=1` 时才读取代理 header。
