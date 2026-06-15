@@ -45,6 +45,35 @@ function ensureTables(database: Database): void {
     )
   `);
 
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS share_aliases (
+      slug TEXT PRIMARY KEY,
+      type TEXT NOT NULL CHECK(type IN ('file', 'dir', 'git')),
+      token TEXT NOT NULL,
+      created_at REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_share_aliases_token ON share_aliases(token);
+  `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS access_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT NOT NULL,
+      share_type TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      created_at REAL NOT NULL,
+      client_hash TEXT,
+      ua_kind TEXT,
+      referer_origin TEXT,
+      target_path_hash TEXT,
+      target_ext TEXT
+    )
+  `);
+
+  database.exec('CREATE INDEX IF NOT EXISTS idx_access_events_token_created ON access_events (token, created_at)');
+  database.exec('CREATE INDEX IF NOT EXISTS idx_access_events_type_outcome_created ON access_events (event_type, outcome, created_at)');
+
   // Migrate: add live column if missing (existing databases)
   for (const table of ['authorizations', 'dir_authorizations']) {
     try {

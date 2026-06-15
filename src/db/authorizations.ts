@@ -2,6 +2,8 @@ import { randomBytes } from 'crypto';
 import { resolve } from 'path';
 import { existsSync } from 'fs';
 import { getDb } from './index.js';
+import { deleteShareAliasesForToken, lookupShareAlias } from './share-aliases.js';
+import { deleteAccessEventsForToken } from './access-events.js';
 import {
   TOKEN_LENGTH,
   STATUS_VALID, STATUS_EXPIRED, STATUS_NOT_FOUND,
@@ -40,12 +42,19 @@ export function addAuthorization(
   return { token, filename, isNew: true };
 }
 
-export function removeAuthorization(token: string): boolean {
+export function removeAuthorization(tokenOrSlug: string): boolean {
   const db = getDb();
+  const alias = lookupShareAlias(tokenOrSlug);
+  const token = alias?.token || tokenOrSlug;
   const fileResult = db.query('DELETE FROM authorizations WHERE token = ?').run(token);
   const dirResult = db.query('DELETE FROM dir_authorizations WHERE token = ?').run(token);
   const gitResult = db.query('DELETE FROM git_authorizations WHERE token = ?').run(token);
-  return (fileResult.changes + dirResult.changes + gitResult.changes) > 0;
+  const changed = (fileResult.changes + dirResult.changes + gitResult.changes) > 0;
+  if (changed) {
+    deleteShareAliasesForToken(token);
+    deleteAccessEventsForToken(token);
+  }
+  return changed;
 }
 
 export function listAuthorizations(): FileAuthorization[] {

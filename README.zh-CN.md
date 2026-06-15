@@ -27,6 +27,7 @@
 | 分享当前 Git diff | <code>git diff &#124; drop share --type diff</code> |
 | 分享一个 commit | `drop allow-git . HEAD` |
 | 查看活跃分享 | `drop list` |
+| 查看访问统计 | `drop stats --json` |
 | 停止 daemon | `drop stop` |
 
 ## 目录
@@ -144,6 +145,7 @@ share_directory: drop /path/to/dir
 share_stdin: command | drop share --type text
 share_diff: git diff | drop share --type diff
 list_shares: drop list
+stats: drop stats --json
 stop_daemon: drop stop
 never_share:
   - .env
@@ -191,6 +193,20 @@ drop allow ~/file.py
 
 这两个命令都会分享同一个文件。如果 daemon 尚未运行，它会自动启动。
 
+### 自定义 slug
+
+如果希望生成可读的公开 URL，可以使用 `--slug`，而不是只使用随机 token URL：
+
+```bash
+drop allow ~/report.pdf --slug q2-report
+drop share --content "hello" --slug hello-note
+drop allow-git . HEAD --slug release-review
+```
+
+Slug 链接和 token 链接使用同一个 bearer-link 安全模型：`/f/:slug`、`/d/:slug`、`/git/:slug` 在过期或撤销前，任何知道 URL 的人都可以访问。原 token URL 仍然有效。Slug 全局唯一，会统一转为小写，长度 3-64，只允许字母、数字、`_` 和 `-`，且首尾必须是字母或数字。`api`、`raw`、`dashboard`、`f`、`d`、`git`、`list`、`revoke` 等路由名是保留词。非 JSON 输出会提示警告，因为自定义 slug 更容易被猜到。
+
+`drop list --json` 会在存在 slug 时包含 `slug` 和公开 `url`；`drop revoke <id>` 支持传 token 或 slug。
+
 ### 如何选择命令
 
 | 内容 | 推荐命令 |
@@ -215,6 +231,7 @@ drop ~/file.py --live              # 文件变化时刷新预览
 drop ~/file.py --qr                # 同时把终端二维码输出到 stderr
 drop ~/file.py --force             # 扫描密钥；即使命中也继续分享
 drop ~/file.py --no-secret-scan    # 跳过分享前密钥扫描
+drop ~/file.py --slug demo-file    # 生成可读的 /f/demo-file URL
 ```
 
 ### 目录
@@ -228,6 +245,7 @@ drop ~/project/ --live             # 目录变化时刷新
 drop ~/project/ --qr               # 同时把终端二维码输出到 stderr
 drop ~/project/ --force            # 扫描密钥；即使命中也继续分享
 drop ~/project/ --no-secret-scan   # 跳过分享前密钥扫描
+drop ~/project/ --slug demo-dir    # 生成可读的 /d/demo-dir URL
 ```
 
 默认排除项：所有 dotfile 和隐藏目录，例如 `.env`、`.github/`、`.idea/`、`.nebula-secrets/`，以及 `__pycache__/`、`node_modules/`、`*.pyc`、`.venv/`。只有明确需要分享隐藏文件时才使用 `--include-hidden`；已配置的 `default_excludes` 和显式 `--exclude` 仍然生效。
@@ -241,6 +259,7 @@ drop share --content "print('hi')" --type python
 echo "# Hello" | drop share --type markdown --qr
 drop share --content "..." --force --json
 drop share --content "..." --no-secret-scan --json
+drop share --content "hello" --slug hello-note
 ```
 
 支持的类型：`markdown`、`python`、`javascript`、`json`、`yaml`、`html`、`css`、`shell`、`diff`、`code`、`text`。
@@ -270,6 +289,7 @@ drop allow-git . HEAD
 drop allow-git . HEAD --qr
 drop allow-git . HEAD --force
 drop allow-git . HEAD --no-secret-scan
+drop allow-git . HEAD --slug release-review
 ```
 
 Git commit 分享会渲染 commit 元数据、变更文件列表和可展开的高亮 diff。
@@ -298,17 +318,35 @@ drop allow ~/file.py --json --qr | jq .
 | `drop share` | 分享 stdin 或内联文本 |
 | `drop allow-git <repo> <commit>` | 分享 Git commit diff |
 | `drop allow <path> --qr` | 打印分享 URL，并在 stderr 输出终端二维码 |
+| 分享类命令上的 `--slug` | 创建可读的 bearer URL slug |
 | 分享类命令上的 `--force` | 扫描密钥，但命中后仍继续分享 |
 | 分享类命令上的 `--no-secret-scan` | 跳过分享前密钥扫描 |
 | `drop list` | 列出活跃和过期分享 |
 | `drop list --json` | 以 JSON 输出分享列表 |
-| `drop revoke <token>` | 撤销文件、目录或 Git 分享 token |
+| `drop stats [token] --json --since <24h\|7d\|30d>` | 查看访问量、独立访客和最后访问时间 |
+| `drop stats [token] --include-live` | 把 live polling 事件也计入访问量 |
+| `drop revoke <token-or-slug>` | 撤销文件、目录或 Git 分享 token/slug，并删除对应访问事件 |
 | `drop owner-url` | 打印 owner dashboard URL |
 | `drop status` | 检查 daemon 状态 |
 | `drop stop` | 停止 daemon |
 | `drop serve` | 前台启动服务 |
 | `drop config get <key>` | 读取配置 |
 | `drop config set <key> <value>` | 写入配置 |
+
+
+## 访问统计
+
+`drop` 会为成功访问分享链接记录隐私保护后的访问事件。默认访问量只统计渲染页面访问（`/f/:token`、`/d/:token`、`/d/:token/*`、`/git/:token`）和目录原始文件访问（`/d/:token/raw`）。目录树和文件预览 API 可以记录为 `api_tree`、`api_preview`，但默认不计入 views。Live polling 默认不计入，除非使用 `--include-live`。
+
+```bash
+drop stats --json
+drop stats <token-or-slug> --json --since 7d
+drop stats <token-or-slug> --include-live
+```
+
+owner-only dashboard 以及 `/api/stats`、`/api/stats/:token-or-slug` 会展示同样的访问量、独立访客和最后访问时间。
+
+隐私说明：访问事件不会保存原始 IP、完整 User-Agent、完整 Referer、完整目录路径、query、cookies 或 owner key。客户端身份和目录目标路径使用 HMAC 哈希保存，Referer 只保留 origin，User-Agent 只保留粗分类，目标路径只保存哈希和扩展名。撤销 token 时会删除该 token 的访问事件。
 
 ## 配置
 
@@ -348,11 +386,12 @@ drop config get base_url
 - 文件、目录、stdin/内联内容和 Git commit 分享默认启用分享前密钥扫描；阻断结果只输出脱敏元数据和指纹。
 - 响应包含反爬 header，`robots.txt` 禁止索引。
 - owner 访问使用 HMAC 签名 cookie 和 timing-safe key 比较。
+- 访问日志采用隐私保护设计：不保存原始 IP、完整 User-Agent、完整 Referer、完整目标路径、query、cookies 或 owner key。
 - 当前限流实现为每个客户端身份每分钟 300 次请求。默认忽略可伪造的代理 header；只有在可信反向代理后面运行并设置 `DROP_TRUST_PROXY=1` 时才读取代理 header。
 
 重要边界：
 
-- 未过期 token URL 是 bearer link。任何拿到链接的人都能在过期或撤销前访问内容。
+- 未过期 token URL 和 slug URL 都是 bearer link。任何拿到链接的人都能在过期或撤销前访问内容。自定义 slug 可读且更容易被猜到，不要用于敏感内容。
 - Markdown 原始 HTML 会被转义，SVG 通过图片预览渲染，模板控制的文件元数据会进行 HTML 转义。仍应把分享内容视为 bearer-link 内容，避免分享不可信或敏感材料。
 - 不要分享密钥、`.env`、API key、OAuth 凭证、数据库备份，或可能包含这些内容的目录。
 

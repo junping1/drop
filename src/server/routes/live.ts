@@ -6,19 +6,22 @@ import { Hono } from 'hono';
 import { existsSync, statSync } from 'fs';
 import { lookupAuthorization } from '../../db/authorizations.js';
 import { lookupDirAuthorization } from '../../db/dir-authorizations.js';
+import { resolveShareToken } from '../../db/share-aliases.js';
 import { STATUS_NOT_FOUND, STATUS_EXPIRED } from '../../shared/constants.js';
 
 const liveRoutes = new Hono();
 
 liveRoutes.get('/live/:token/poll', (c) => {
-  const token = c.req.param('token');
+  const publicId = c.req.param('token');
   const since = parseFloat(c.req.query('since') || '0');
 
   // Try file authorizations first, then dir
+  let token = resolveShareToken('file', publicId);
   let { row, status } = lookupAuthorization(token);
   let filepath: string | undefined;
 
   if (status === STATUS_NOT_FOUND) {
+    token = resolveShareToken('dir', publicId);
     const dirResult = lookupDirAuthorization(token);
     row = dirResult.row as any;
     status = dirResult.status;

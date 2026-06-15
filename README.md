@@ -27,6 +27,7 @@ Share local files, folders, stdin content, and Git diffs through time-limited pr
 | Share current Git diff | <code>git diff &#124; drop share --type diff</code> |
 | Share a commit | `drop allow-git . HEAD` |
 | List active shares | `drop list` |
+| View access stats | `drop stats --json` |
 | Stop the daemon | `drop stop` |
 
 ## Contents
@@ -144,6 +145,7 @@ share_directory: drop /path/to/dir
 share_stdin: command | drop share --type text
 share_diff: git diff | drop share --type diff
 list_shares: drop list
+stats: drop stats --json
 stop_daemon: drop stop
 never_share:
   - .env
@@ -191,6 +193,20 @@ drop allow ~/file.py
 
 Both commands share the same file. The daemon starts automatically if it is not already running.
 
+### Custom slugs
+
+Use `--slug` when you want a readable public URL instead of only the generated token URL:
+
+```bash
+drop allow ~/report.pdf --slug q2-report
+drop share --content "hello" --slug hello-note
+drop allow-git . HEAD --slug release-review
+```
+
+Slug links use the same bearer-link security model as token links: `/f/:slug`, `/d/:slug`, and `/git/:slug` are accessible to anyone who knows the URL until the share expires or is revoked. The original token URL remains valid. Slugs are global, lowercased, 3-64 characters, may contain letters, numbers, `_`, and `-`, and must start and end with a letter or number. Route names such as `api`, `raw`, `dashboard`, `f`, `d`, `git`, `list`, and `revoke` are reserved. Non-JSON output prints a warning because custom slugs are easier to guess.
+
+`drop list --json` includes `slug` and the public `url` when a slug exists, and `drop revoke <id>` accepts either the token or slug.
+
 ### Choosing the right command
 
 | Content | Best command |
@@ -215,6 +231,7 @@ drop ~/file.py --live              # reload preview when the file changes
 drop ~/file.py --qr                # also print a terminal QR code to stderr
 drop ~/file.py --force             # scan secrets, then share even if findings exist
 drop ~/file.py --no-secret-scan    # skip the pre-share secret scan
+drop ~/file.py --slug demo-file    # readable /f/demo-file URL
 ```
 
 ### Directories
@@ -228,6 +245,7 @@ drop ~/project/ --live             # refresh when the directory changes
 drop ~/project/ --qr               # also print a terminal QR code to stderr
 drop ~/project/ --force            # scan secrets, then share even if findings exist
 drop ~/project/ --no-secret-scan   # skip the pre-share secret scan
+drop ~/project/ --slug demo-dir    # readable /d/demo-dir URL
 ```
 
 Default excludes: dotfiles and hidden directories such as `.env`, `.github/`, `.idea/`, and `.nebula-secrets/`, plus `__pycache__/`, `node_modules/`, `*.pyc`, and `.venv/`. Use `--include-hidden` only when you intentionally want hidden files included; configured `default_excludes` and explicit `--exclude` patterns still apply.
@@ -241,6 +259,7 @@ drop share --content "print('hi')" --type python
 echo "# Hello" | drop share --type markdown --qr
 drop share --content "..." --force --json
 drop share --content "..." --no-secret-scan --json
+drop share --content "hello" --slug hello-note
 ```
 
 Supported types: `markdown`, `python`, `javascript`, `json`, `yaml`, `html`, `css`, `shell`, `diff`, `code`, `text`.
@@ -270,6 +289,7 @@ drop allow-git . HEAD
 drop allow-git . HEAD --qr
 drop allow-git . HEAD --force
 drop allow-git . HEAD --no-secret-scan
+drop allow-git . HEAD --slug release-review
 ```
 
 Git commit shares render commit metadata, changed files, and expandable highlighted diffs.
@@ -298,17 +318,35 @@ If QR rendering fails, the share still succeeds and Drop prints a warning to std
 | `drop share` | share stdin or inline text |
 | `drop allow-git <repo> <commit>` | share a Git commit diff |
 | `drop allow <path> --qr` | print the share URL and a terminal QR code on stderr |
+| `--slug` on share commands | create a readable bearer URL slug |
 | `--force` on share commands | scan secrets but continue when findings exist |
 | `--no-secret-scan` on share commands | skip the pre-share secret scan |
 | `drop list` | list active and expired shares |
 | `drop list --json` | list shares as JSON |
-| `drop revoke <token>` | revoke a file, directory, or Git share token |
+| `drop stats [token] --json --since <24h\|7d\|30d>` | show access view, unique visitor, and last access stats |
+| `drop stats [token] --include-live` | include live polling events in view counts |
+| `drop revoke <token-or-slug>` | revoke a file, directory, or Git share token/slug and delete its access events |
 | `drop owner-url` | print the owner dashboard URL |
 | `drop status` | check daemon status |
 | `drop stop` | stop the daemon |
 | `drop serve` | start the server in the foreground |
 | `drop config get <key>` | read a config value |
 | `drop config set <key> <value>` | write a config value |
+
+
+## Access Stats
+
+`drop` records privacy-preserving access events for successful share views. Default view counts include rendered page views (`/f/:token`, `/d/:token`, `/d/:token/*`, `/git/:token`) and raw directory file views (`/d/:token/raw`). Directory tree/file preview API calls may be recorded as `api_tree` and `api_preview`, but they are not counted as views by default. Live polling is not included unless `--include-live` is used.
+
+```bash
+drop stats --json
+drop stats <token-or-slug> --json --since 7d
+drop stats <token-or-slug> --include-live
+```
+
+The owner-only dashboard and `/api/stats` / `/api/stats/:token-or-slug` endpoints expose the same view, unique visitor, and last access totals.
+
+Privacy notes: access events never store raw IP addresses, full user agents, full referrers, full directory paths, query strings, cookies, or owner keys. Client identity and directory target paths are stored as HMAC hashes, referrers are reduced to origin, user agents are coarse browser/tool categories, and target paths keep only a hash plus file extension. Revoking a token deletes its access events.
 
 ## Configuration
 
@@ -348,12 +386,13 @@ drop config get base_url
 - Pre-share secret scanning is enabled by default for file, directory, stdin/content, and Git commit shares. Blocking findings are reported only with sanitized metadata and fingerprints.
 - Responses include anti-crawler headers and `robots.txt` disallows indexing.
 - Owner access uses HMAC-signed cookies and timing-safe key comparison.
+- Access logging is privacy-preserving: raw IPs, full user agents, full referrers, full target paths, query strings, cookies, and owner keys are not stored.
 - Current rate limiting is 300 requests per minute per client identity. Proxy headers are ignored unless `DROP_TRUST_PROXY=1` is set for a trusted reverse proxy.
 - Markdown raw HTML is escaped, SVG is rendered as an image preview, and template-controlled metadata is HTML-escaped.
 
 Important boundaries:
 
-- Unexpired token URLs are bearer links. Anyone with the URL can access the shared content until it expires or is revoked.
+- Unexpired token and slug URLs are bearer links. Anyone with the URL can access the shared content until it expires or is revoked. Custom slugs are human-readable and may be guessable, so do not use them for sensitive content.
 - Markdown raw HTML is escaped, SVG is rendered through an image preview, and template-controlled file metadata is HTML-escaped. Still treat shared files as bearer-link content and avoid sharing untrusted or sensitive material.
 - Avoid sharing secrets, `.env` files, API keys, OAuth credentials, database backups, or directories that may contain them.
 

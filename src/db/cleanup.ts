@@ -1,5 +1,7 @@
 import { existsSync, unlinkSync, readdirSync } from 'fs';
 import { getDb } from './index.js';
+import { deleteShareAliasesForToken } from './share-aliases.js';
+import { deleteAccessEventsForToken } from './access-events.js';
 import {
   SHARES_DIR,
   STATUS_ACTIVE, STATUS_EXPIRED,
@@ -24,6 +26,8 @@ export function cleanupExpiredShares(): void {
       }
     }
     db.query('DELETE FROM authorizations WHERE token = ?').run(row.token);
+    deleteShareAliasesForToken(row.token);
+    deleteAccessEventsForToken(row.token);
   }
 }
 
@@ -35,6 +39,7 @@ export interface AllAuthorizationItem {
   created_at: number;
   expires_at: number;
   status: string;
+  slug?: string;
 }
 
 export function listAllAuthorizations(): AllAuthorizationItem[] {
@@ -47,9 +52,11 @@ export function listAllAuthorizations(): AllAuthorizationItem[] {
   ).all() as { token: string; filepath: string; filename: string; created_at: number; expires_at: number }[];
 
   for (const row of fileRows) {
+    const alias = db.query('SELECT slug FROM share_aliases WHERE token = ? ORDER BY created_at DESC LIMIT 1').get(row.token) as { slug: string } | null;
     results.push({
       type: 'file',
       token: row.token,
+      slug: alias?.slug,
       path: row.filepath,
       name: row.filename,
       created_at: row.created_at,
@@ -63,9 +70,11 @@ export function listAllAuthorizations(): AllAuthorizationItem[] {
   ).all() as { token: string; repo_path: string; commit_hash: string; created_at: number; expires_at: number }[];
 
   for (const row of gitRows) {
+    const alias = db.query('SELECT slug FROM share_aliases WHERE token = ? ORDER BY created_at DESC LIMIT 1').get(row.token) as { slug: string } | null;
     results.push({
       type: 'git',
       token: row.token,
+      slug: alias?.slug,
       path: row.repo_path,
       name: row.commit_hash.slice(0, 12),
       created_at: row.created_at,
@@ -79,9 +88,11 @@ export function listAllAuthorizations(): AllAuthorizationItem[] {
   ).all() as { token: string; dirpath: string; dirname: string; created_at: number; expires_at: number }[];
 
   for (const row of dirRows) {
+    const alias = db.query('SELECT slug FROM share_aliases WHERE token = ? ORDER BY created_at DESC LIMIT 1').get(row.token) as { slug: string } | null;
     results.push({
       type: 'dir',
       token: row.token,
+      slug: alias?.slug,
       path: row.dirpath,
       name: row.dirname,
       created_at: row.created_at,
