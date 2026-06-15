@@ -513,6 +513,7 @@ program
     if (resolvedToken) {
       const item = result as ReturnType<typeof getAccessStats>;
       console.log(`${token}: ${item.views} views, ${item.unique} unique, last access ${item.last_access_at ? new Date(item.last_access_at * 1000).toISOString() : 'never'}`);
+      printUniqueCaveat();
       return;
     }
 
@@ -521,7 +522,16 @@ program
     for (const item of aggregate.tokens) {
       console.log(`  ${item.token}  ${item.views} views  ${item.unique} unique  last=${item.last_access_at ? new Date(item.last_access_at * 1000).toISOString() : 'never'}`);
     }
+    printUniqueCaveat();
   });
+
+function printUniqueCaveat(): void {
+  // Without trust_proxy, every client IP is recorded as 127.0.0.1, so the
+  // "unique" count is always 1 (per share) and not meaningful.
+  if (loadConfig().trust_proxy !== true) {
+    console.error('Note: "unique" counts are not meaningful unless trust_proxy is enabled (all clients are recorded as 127.0.0.1).');
+  }
+}
 
 // owner-url
 program

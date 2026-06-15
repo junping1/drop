@@ -259,7 +259,11 @@ function runGit(args: string[], cwd: string): string {
 
 export function scanGitCommit(repoPath: string, commitHash: string): SecretScanResult {
   const findings: SecretFinding[] = [];
-  const output = runGit(['show', '--format=', '--no-ext-diff', '--unified=0', commitHash], repoPath);
+  // Scan the same content that gets served to viewers. The served diff
+  // (src/db/git-authorizations.ts) uses default context, so unchanged context
+  // lines are disclosed too — scan added AND context lines, not just '+' lines,
+  // or a secret on a context line adjacent to an edit would leak unscanned.
+  const output = runGit(['show', '--format=', '--no-ext-diff', commitHash], repoPath);
   let currentPath = '<git-diff>';
   let newLine = 0;
 
@@ -276,16 +280,18 @@ export function scanGitCommit(repoPath: string, commitHash: string): SecretScanR
       continue;
     }
 
-    if (line.startsWith('+') && !line.startsWith('+++')) {
+    // Added ('+') and context (' ') lines are both part of the served diff.
+    const isAdded = line.startsWith('+') && !line.startsWith('+++');
+    const isContext = line.startsWith(' ');
+    if (isAdded || isContext) {
       const content = line.slice(1);
       const result = scanText(content, currentPath);
       for (const finding of result.findings) {
         findings.push({ ...finding, line: newLine || finding.line });
       }
       newLine++;
-    } else if (line.startsWith(' ') || line.startsWith('-')) {
-      if (!line.startsWith('-')) newLine++;
     }
+    // Removed ('-') lines are not served; skip them without advancing newLine.
   }
 
   return { blocked: findings.length > 0, findings };
