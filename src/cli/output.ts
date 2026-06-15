@@ -38,6 +38,14 @@ export function outputShareResult(result: ShareResult, opts: ShareOutputOptions 
     writeLine(stdout, JSON.stringify(result));
   } else {
     writeLine(stdout, result.url);
+    const secretScan = result.secret_scan as { forced?: boolean; findings_count?: number } | undefined;
+    if (secretScan?.forced) {
+      const count = secretScan.findings_count ?? 0;
+      writeLine(
+        stderr,
+        `Warning: secret scan found ${count} high-confidence ${count === 1 ? 'match' : 'matches'} but shared anyway (--force). Use --json to inspect findings.`,
+      );
+    }
     for (const message of opts.stderrMessages ?? []) {
       writeLine(stderr, message);
     }
