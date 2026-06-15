@@ -409,11 +409,29 @@ drop README.md
 For public sharing, run your preferred tunnel and set `base_url`:
 
 ```bash
-cloudflared tunnel --url http://localhost:17173
+cloudflared tunnel --url http://127.0.0.1:17173
 ngrok http 17173
 tailscale funnel 17173
 
 drop config set base_url https://your-domain.example
+```
+
+For a Cloudflare named tunnel, point ingress at `127.0.0.1` instead of `localhost` so the connector does not accidentally try IPv6 loopback when Drop is bound to `0.0.0.0` / IPv4:
+
+```yaml
+ingress:
+  - hostname: share.example.com
+    service: http://127.0.0.1:17173
+  - service: http_status:404
+```
+
+After changing tunnel config, restart `cloudflared` and smoke test both the local and public URL:
+
+```bash
+drop allow README.md --slug smoke-test
+curl -fsS http://127.0.0.1:17173/f/smoke-test | head
+curl -fsS https://share.example.com/f/smoke-test | head
+drop stats smoke-test --json
 ```
 
 The CLI exposes a `drop serve --tunnel` option, but verify the current implementation before relying on built-in tunnel behavior in production workflows.

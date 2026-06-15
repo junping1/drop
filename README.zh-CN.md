@@ -408,11 +408,29 @@ drop README.md
 如果要公网分享，运行你偏好的隧道工具并设置 `base_url`：
 
 ```bash
-cloudflared tunnel --url http://localhost:17173
+cloudflared tunnel --url http://127.0.0.1:17173
 ngrok http 17173
 tailscale funnel 17173
 
 drop config set base_url https://your-domain.example
+```
+
+使用 Cloudflare named tunnel 时，建议把 ingress 指向 `127.0.0.1`，不要写 `localhost`。这样可以避免连接器在 Drop 绑定到 `0.0.0.0` / IPv4 时误走 IPv6 loopback：
+
+```yaml
+ingress:
+  - hostname: share.example.com
+    service: http://127.0.0.1:17173
+  - service: http_status:404
+```
+
+修改 tunnel 配置后，重启 `cloudflared`，并同时冒烟测试本地 URL 和公网 URL：
+
+```bash
+drop allow README.md --slug smoke-test
+curl -fsS http://127.0.0.1:17173/f/smoke-test | head
+curl -fsS https://share.example.com/f/smoke-test | head
+drop stats smoke-test --json
 ```
 
 CLI 暴露了 `drop serve --tunnel` 选项，但在生产工作流中依赖内置隧道前，请先确认当前实现是否完整。

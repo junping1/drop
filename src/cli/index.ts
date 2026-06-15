@@ -136,6 +136,9 @@ program
       hostname: host,
       fetch: app.fetch,
     });
+    // Bun.serve() keeps the event loop (and the process) alive on its own in
+    // both source and compiled-binary modes, so no explicit keep-alive loop is
+    // needed here.
   });
 
 // allow
