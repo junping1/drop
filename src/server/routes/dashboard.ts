@@ -7,6 +7,7 @@ import { loadConfig, getOwnerKey } from '../../shared/config.js';
 import { STATUS_ACTIVE } from '../../shared/constants.js';
 import { displayPath, formatTime } from '../../shared/utils.js';
 import { listAllAuthorizations } from '../../db/cleanup.js';
+import { getAccessStats } from '../../db/access-events.js';
 import { checkOwnerAuth, setOwnerCookie, safeCompare } from '../middleware/auth.js';
 import { dashboardPageHtml } from '../render/html-templates.js';
 
@@ -36,16 +37,25 @@ dashboardRoutes.get('/dashboard', (c) => {
     git: '/git/',
   };
 
-  const formattedShares = shares.map(s => ({
-    type: s.type,
-    display_path: displayPath(s.path),
-    path: s.path,
-    token: s.token,
-    url: baseUrl ? `${baseUrl}${prefixMap[s.type]}${s.token}` : `${prefixMap[s.type]}${s.token}`,
-    created_str: formatTime(s.created_at),
-    expires_str: formatTime(s.expires_at),
-    status: s.status,
-  }));
+  const formattedShares = shares.map(s => {
+    const publicId = s.slug || s.token;
+    const stats = getAccessStats(s.token);
+    return {
+      type: s.type,
+      display_path: displayPath(s.path),
+      path: s.path,
+      token: s.token,
+      slug: s.slug,
+      public_id: publicId,
+      url: baseUrl ? `${baseUrl}${prefixMap[s.type]}${publicId}` : `${prefixMap[s.type]}${publicId}`,
+      created_str: formatTime(s.created_at),
+      expires_str: formatTime(s.expires_at),
+      views: stats.views,
+      unique: stats.unique,
+      last_access_str: stats.last_access_at ? formatTime(stats.last_access_at) : '—',
+      status: s.status,
+    };
+  });
 
   const activeCount = formattedShares.filter(s => s.status === STATUS_ACTIVE).length;
 

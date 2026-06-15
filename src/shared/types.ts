@@ -47,6 +47,7 @@ export interface FilePreviewResponse {
 
 export interface ShareListItem {
   token: string;
+  slug?: string;
   type: 'file' | 'dir' | 'git';
   path: string;
   name?: string;

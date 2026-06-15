@@ -50,8 +50,16 @@ export function lookupGitAuthorization(token: string): { row: GitAuthorization |
   return { row, status: STATUS_VALID };
 }
 
+function cleanGitEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!key.startsWith('GIT_') && value !== undefined) env[key] = value;
+  }
+  return env;
+}
+
 function runGit(args: string[], cwd: string): string {
-  const result = Bun.spawnSync(['git', ...args], { cwd });
+  const result = Bun.spawnSync(['git', ...args], { cwd, env: cleanGitEnv() });
   if (result.exitCode !== 0) {
     throw new Error(`git ${args[0]} failed: ${result.stderr.toString()}`);
   }

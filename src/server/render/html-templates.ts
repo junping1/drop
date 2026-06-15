@@ -735,9 +735,14 @@ export interface DashboardPageOpts {
     display_path: string;
     path: string;
     token: string;
+    slug?: string;
+    public_id?: string;
     url: string;
     created_str: string;
     expires_str: string;
+    views: number;
+    unique: number;
+    last_access_str: string;
     status: string;
   }>;
   shareCount: number;
@@ -756,16 +761,19 @@ export function dashboardPageHtml(opts: DashboardPageOpts): string {
       <tr class="${rowClass}">
         <td><span class="type-badge type-${attr(s.type)}">${h(s.type)}</span></td>
         <td class="path" title="${attr(s.path)}">${h(s.display_path)}</td>
-        <td><a class="token-link" href="${attr(s.url)}">${h(s.token.slice(0, 8))}&hellip;</a></td>
+        <td><a class="token-link" href="${attr(s.url)}">${h(s.slug || (s.token.slice(0, 8) + '…'))}</a></td>
         <td>${h(s.created_str)}</td>
         <td>${h(s.expires_str)}</td>
+        <td>${h(s.views ?? 0)}</td>
+        <td>${h(s.unique ?? 0)}</td>
+        <td>${h(s.last_access_str ?? '—')}</td>
         <td class="status-${attr(s.status)}">${h(s.status)}</td>
       </tr>`;
     }
     tableBody = `
   <table class="shares-table">
     <thead>
-      <tr><th>Type</th><th>Path</th><th>Token</th><th>Created</th><th>Expires</th><th>Status</th></tr>
+      <tr><th>Type</th><th>Path</th><th>Public ID</th><th>Created</th><th>Expires</th><th>Views</th><th>Unique</th><th>Last access</th><th>Status</th></tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>`;
@@ -927,7 +935,7 @@ export function dirBrowserShellHtml(opts: DirBrowserShellOpts): string {
     extraCssDark: `
     --bg-sidebar: #252526;
     --bg-hover: #2a2d2e;
-    --bg-active: #37373d;
+    --bg-active: #1f3a5f;
     --text-dim: #6a6a6a;
     --accent: #4a9eff;
     --shadow-sidebar: rgba(0,0,0,0.3);
@@ -936,8 +944,8 @@ export function dirBrowserShellHtml(opts: DirBrowserShellOpts): string {
     --skeleton-shine: #444;`,
     extraCssLight: `
     --bg-sidebar: #f3f3f3;
-    --bg-hover: #e8e8e8;
-    --bg-active: #d6d6d6;
+    --bg-hover: #eaf2ff;
+    --bg-active: #dbeafe;
     --text-dim: #999;
     --accent: #0969da;
     --shadow-sidebar: rgba(0,0,0,0.1);
@@ -1071,11 +1079,16 @@ export function dirBrowserShellHtml(opts: DirBrowserShellOpts): string {
     transition: background 0.1s;
   }
   .tree-item:hover { background: var(--bg-hover); }
+  .tree-item[aria-expanded="true"] {
+    background: var(--bg-hover);
+    color: var(--text-header);
+  }
   .tree-item.active {
     background: var(--bg-active);
     border-left: 3px solid var(--accent);
     padding-left: 9px;
     border-radius: 2px;
+    color: var(--text-header);
   }
   .tree-item:focus-visible {
     outline: 2px solid var(--accent);
@@ -1104,6 +1117,10 @@ export function dirBrowserShellHtml(opts: DirBrowserShellOpts): string {
   .tree-item .name {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .tree-item[aria-expanded="true"] .name,
+  .tree-item.active .name {
+    font-weight: 600;
   }
   .tree-group.open { display: block; }
 

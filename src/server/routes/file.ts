@@ -5,11 +5,13 @@
 import { Hono } from 'hono';
 import { existsSync, readFileSync, statSync } from 'fs';
 import { lookupAuthorization } from '../../db/authorizations.js';
+import { resolveShareToken } from '../../db/share-aliases.js';
 import { STATUS_NOT_FOUND, STATUS_EXPIRED, MAX_RENDER_SIZE } from '../../shared/constants.js';
 import { getFileType } from '../../shared/fs.js';
 import { getRenderer } from '../render/index.js';
 import { handleExpired } from '../middleware/auth.js';
 import { guessMime } from '../../shared/mime.js';
+import { recordRouteAccess } from '../access-logging.js';
 
 const fileRoutes = new Hono();
 
@@ -36,7 +38,8 @@ function injectLiveJs(html: string, token: string): string {
 }
 
 function serveFileHandler(c: any) {
-  const token = c.req.param('token');
+  const publicId = c.req.param('token');
+  const token = resolveShareToken('file', publicId);
   const { row, status } = lookupAuthorization(token);
 
   if (status === STATUS_NOT_FOUND) {
@@ -66,14 +69,16 @@ function serveFileHandler(c: any) {
   if (renderer) {
     let html = renderer(filepath, head, tail);
     if (row!.live && html.includes('</body>')) {
-      html = injectLiveJs(html, token);
+      html = injectLiveJs(html, publicId);
     }
+    recordRouteAccess(c, token, 'file', 'page_view');
     return c.html(html);
   }
 
   // Serve raw file (images, PDFs, binary)
   const mime = guessMime(filepath);
   const data = readFileSync(filepath);
+  recordRouteAccess(c, token, 'file', 'page_view');
   return new Response(data, {
     headers: { 'Content-Type': mime },
   });
