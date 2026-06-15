@@ -372,4 +372,41 @@ describe('directory git API', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  test('does not leak contents of excluded files through commit diffs', async () => {
+    const root = withTempDb();
+    try {
+      const repo = join(root, 'repo-excl');
+      mkdirSync(repo);
+      git(['init'], repo);
+      git(['config', 'core.hooksPath', '/dev/null'], repo);
+      git(['config', 'user.email', 'test@example.com'], repo);
+      git(['config', 'user.name', 'Test User'], repo);
+      const SECRET = 'SUPER_SECRET_TOKEN_abc123';
+      // Root commit needs a parent for diff-tree to report files, so seed first.
+      writeFileSync(join(repo, 'README.md'), 'readme\n');
+      git(['add', 'README.md'], repo);
+      git(['commit', '-m', 'init'], repo);
+      writeFileSync(join(repo, 'note.txt'), 'hello\n');
+      writeFileSync(join(repo, '.env'), `API_KEY=${SECRET}\n`);
+      git(['add', 'note.txt', '.env'], repo);
+      git(['commit', '-m', 'add visible and hidden files'], repo);
+      const sha = git(['rev-parse', 'HEAD'], repo);
+
+      // Share with the default hidden-file exclusion applied.
+      const token = addDirAuthorization(repo, 60, ['.*']).token;
+
+      const diff = await app.request(`/d/${token}/api/git/commit/${sha}`);
+      const diffJson = await diff.json() as any;
+      expect(diff.status).toBe(200);
+      // Visible file is shown; excluded dotfile and its secret are not.
+      expect(diffJson.diff_html).toContain('note.txt');
+      expect(diffJson.diff_html).not.toContain('.env');
+      expect(diffJson.diff_html).not.toContain(SECRET);
+      expect(JSON.stringify(diffJson)).not.toContain(SECRET);
+      expect(diffJson.file_count).toBe(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

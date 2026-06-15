@@ -353,7 +353,7 @@ dirRoutes.get('/d/:token/api/git/commit/:sha', (c) => {
   }
 
   try {
-    return c.json(renderCommitDiffHtml(row!.dirpath, sha));
+    return c.json(renderCommitDiffHtml(row!.dirpath, sha, getExcludes(row!)));
   } catch (e: any) {
     return c.text('Failed to read git commit', 500);
   }

@@ -1,6 +1,7 @@
 import { getGitCommitInfo } from '../../db/git-authorizations.js';
 import { htmlEscape } from '../../shared/utils.js';
 import { highlightCode } from '../render/code.js';
+import { isPathExcluded } from '../../shared/fs.js';
 
 export const DEFAULT_DIR_GIT_COMMIT_LIMIT = 5;
 export const OWNER_DIR_GIT_COMMIT_LIMIT = 100;
@@ -80,15 +81,21 @@ export function isCommitInRecentWindow(repoPath: string, sha: string, limit = DE
   return listCommits(repoPath, limit).some((commit) => commit.sha.startsWith(sha));
 }
 
-export function renderCommitDiffHtml(repoPath: string, sha: string): {
+export function renderCommitDiffHtml(repoPath: string, sha: string, excludes: string[] = []): {
   commit: DirGitCommitSummary;
   diff_html: string;
   file_count: number;
 } {
   const info = getGitCommitInfo(repoPath, sha);
+  // Never disclose contents of files excluded from the share (e.g. dotfiles
+  // hidden by default, or paths the owner excluded). The file-browse routes
+  // already enforce this; history diffs must too, or excluded files leak
+  // through their current and historical contents.
+  const visibleFiles = info.files.filter((file) => !isPathExcluded(file.path, excludes));
+  const hiddenCount = info.files.length - visibleFiles.length;
   const filesHtml: string[] = [];
 
-  for (const file of info.files) {
+  for (const file of visibleFiles) {
     const stats = `+${file.added} -${file.deleted}`;
     const diffHighlighted = file.diff
       ? '<pre class="hljs"><code class="hljs">' + highlightCode(file.diff, 'diff') + '</code></pre>'
@@ -103,6 +110,9 @@ export function renderCommitDiffHtml(repoPath: string, sha: string): {
   const body = info.body
     ? `<p class="commit-body">${htmlEscape(info.body)}</p>`
     : '';
+  const hiddenNote = hiddenCount > 0
+    ? `<div class="file-hidden-note">${hiddenCount} excluded file${hiddenCount === 1 ? '' : 's'} hidden</div>`
+    : '';
   const diffHtml =
     `<div class="commit-header">` +
     `<div class="commit-subject">${htmlEscape(info.subject)}</div>` +
@@ -110,7 +120,8 @@ export function renderCommitDiffHtml(repoPath: string, sha: string): {
     `<div class="commit-meta"><span class="hash">${htmlEscape(info.hash)}</span>` +
     ` · ${htmlEscape(info.author_name)} · ${htmlEscape(info.date)}</div>` +
     `</div>` +
-    `<div class="file-summary">${info.files.length} file${info.files.length === 1 ? '' : 's'} changed</div>` +
+    `<div class="file-summary">${visibleFiles.length} file${visibleFiles.length === 1 ? '' : 's'} changed</div>` +
+    hiddenNote +
     `<div class="file-list">${filesHtml.join('\n')}</div>`;
 
   return {
@@ -122,6 +133,6 @@ export function renderCommitDiffHtml(repoPath: string, sha: string): {
       authored_at: info.date,
     },
     diff_html: diffHtml,
-    file_count: info.files.length,
+    file_count: visibleFiles.length,
   };
 }

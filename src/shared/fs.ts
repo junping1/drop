@@ -35,6 +35,22 @@ export function isExcluded(name: string, isDir: boolean, excludes: string[]): bo
   return false;
 }
 
+/**
+ * Check whether a relative path (e.g. a git diff path like "src/.env") should be
+ * excluded, applying the per-segment exclude rules used elsewhere. Unlike
+ * validateDirPath this does not touch the filesystem, so it works for paths that
+ * no longer exist on disk (e.g. files deleted in a historical commit). Every
+ * non-final segment is treated as a directory and the final segment as a file.
+ */
+export function isPathExcluded(relPath: string, excludes: string[]): boolean {
+  const parts = relPath.split('/').filter(Boolean);
+  for (let i = 0; i < parts.length; i++) {
+    const isDir = i < parts.length - 1;
+    if (isExcluded(parts[i], isDir, excludes)) return true;
+  }
+  return false;
+}
+
 export function walkDirectory(dirpath: string, excludes: string[]): DirEntry {
   const realDir = realpathSync(dirpath);
   const cacheKey = `${realDir}:${excludes.join(',')}`;
