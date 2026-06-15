@@ -223,13 +223,14 @@ drop ~/file.py --no-secret-scan    # skip the pre-share secret scan
 drop ~/project/                    # share a browsable file tree
 drop ~/project/ --ttl 7200         # custom TTL
 drop ~/project/ --exclude '*.log'  # add exclude patterns
+drop ~/project/ --include-hidden   # include dotfiles and hidden directories
 drop ~/project/ --live             # refresh when the directory changes
 drop ~/project/ --qr               # also print a terminal QR code to stderr
 drop ~/project/ --force            # scan secrets, then share even if findings exist
 drop ~/project/ --no-secret-scan   # skip the pre-share secret scan
 ```
 
-Default excludes: `.git/`, `__pycache__/`, `.env`, `node_modules/`, `.DS_Store`, `*.pyc`, `.venv/`.
+Default excludes: dotfiles and hidden directories such as `.env`, `.github/`, `.idea/`, and `.nebula-secrets/`, plus `__pycache__/`, `node_modules/`, `*.pyc`, and `.venv/`. Use `--include-hidden` only when you intentionally want hidden files included; configured `default_excludes` and explicit `--exclude` patterns still apply.
 
 ### Stdin
 
@@ -250,7 +251,7 @@ Before creating a file, directory, stdin, or Git commit authorization, `drop` sc
 
 Covered rules include private keys, GitHub tokens, OpenAI/Anthropic API keys, Slack tokens, Stripe live keys, Google API keys, AWS access key IDs, Google service-account JSON, and sensitive filenames such as `credentials.json`, `secrets.yaml`, `*.pem`, `*.key`, `.npmrc`, and `.netrc`.
 
-Directory scans use the same default excludes as directory sharing plus any `--exclude` patterns, and do not follow symlinks that escape the shared directory or create cycles.
+Directory scans use the same default excludes as directory sharing plus any `--exclude` patterns, and do not follow symlinks that escape the shared directory or create cycles. For directory shares, `--include-hidden` removes the built-in dotfile/hidden-directory exclude from both the file tree and the pre-share scan, so hidden secrets are scanned and can block the share unless explicitly excluded.
 
 Override flags:
 

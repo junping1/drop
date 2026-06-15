@@ -7,10 +7,11 @@ import { randomBytes } from 'crypto';
 
 import {
   DEFAULT_PORT, DEFAULT_HOST, DEFAULT_TTL, DIR_DEFAULT_TTL,
-  DEFAULT_EXCLUDES, SHARES_DIR, SHARE_TYPE_MAP, MAX_SHARE_SIZE,
+  SHARES_DIR, SHARE_TYPE_MAP, MAX_SHARE_SIZE,
   STATUS_ACTIVE, STATUS_EXPIRED,
   ensureStateDir,
 } from '../shared/constants.js';
+import { directoryDefaultExcludes } from '../shared/excludes.js';
 import { loadConfig, saveConfig, getOwnerKey } from '../shared/config.js';
 import { displayPath } from '../shared/utils.js';
 import { addAuthorization, removeAuthorization, listAuthorizations } from '../db/authorizations.js';
@@ -131,6 +132,7 @@ program
   .option('--head <lines>', 'Only show first N lines (files only)')
   .option('--tail <lines>', 'Only show last N lines (files only)')
   .option('--exclude <pattern...>', 'Additional exclude patterns for directory shares')
+  .option('--include-hidden', 'Include dotfiles and hidden directories in directory shares', false)
   .option('--live', 'Enable live preview (auto-refresh on file changes)', false)
   .option('--force', 'Continue even when secret scan finds high-confidence secrets', false)
   .option('--no-secret-scan', 'Skip secret scanning before creating authorization')
@@ -155,8 +157,14 @@ program
       process.exit(1);
     }
 
-    const excludes = isDir ? [...(cfg.default_excludes || DEFAULT_EXCLUDES), ...(opts.exclude || [])] : [];
-    const secretScan = runSecretScanForCli(opts, () => scanPath(absPath, { excludes }));
+    const excludes = isDir
+      ? [...directoryDefaultExcludes(Boolean(opts.includeHidden), cfg.default_excludes), ...(opts.exclude || [])]
+      : [];
+    const secretScan = runSecretScanForCli(opts, () => scanPath(absPath, {
+      excludes,
+      includeHidden: Boolean(opts.includeHidden),
+      useDefaultExcludes: false,
+    }));
 
     if (isDir) {
       const ttl = opts.ttl ? parseInt(opts.ttl, 10) : (cfg.dir_default_ttl || DIR_DEFAULT_TTL);

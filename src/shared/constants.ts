@@ -17,9 +17,14 @@ export const STATUS_ACTIVE = 'active' as const;
 export const DIR_TOKEN_LENGTH = 16; // bytes, produces 32 hex chars (128 bits)
 export const OWNER_KEY_LENGTH = 16; // bytes, produces 32 hex chars
 export const DIR_DEFAULT_TTL = 86400; // 1 day
-export const DEFAULT_EXCLUDES = [
+export const BASE_DEFAULT_EXCLUDES = [
   '.git/', '__pycache__/', '.env', 'node_modules/',
   '.DS_Store', '*.pyc', '.venv/',
+];
+export const DEFAULT_HIDDEN_EXCLUDES = ['.*'];
+export const DEFAULT_EXCLUDES = [
+  ...BASE_DEFAULT_EXCLUDES,
+  ...DEFAULT_HIDDEN_EXCLUDES,
 ];
 export const MAX_DIR_FILES = 10000;
 export const MAX_RENDER_SIZE = 5 * 1024 * 1024; // 5 MB

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { app } from '../src/server/index.js';
 import { closeDb, getDb } from '../src/db/index.js';
 
 const CLI = join(import.meta.dir, '..', 'src', 'cli', 'index.ts');
@@ -194,6 +195,102 @@ describe('secret scan CLI integration', () => {
       const payload = JSON.parse(result.stdout.toString());
       expect(payload.error).toContain('--force and --no-secret-scan cannot be used together');
     } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('directory shares exclude hidden files by default and do not scan hidden secrets', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'drop-hidden-default-'));
+    try {
+      const env = makeEnv(root);
+      markDaemonRunning(root);
+      const dir = join(root, 'project');
+      mkdirSync(dir);
+      mkdirSync(join(dir, '.github'));
+      mkdirSync(join(dir, '.hidden-dir'));
+      writeFileSync(join(dir, 'README.md'), 'safe readme');
+      writeFileSync(join(dir, '.env'), `STRIPE_SECRET=${STRIPE_KEY}\n`);
+      writeFileSync(join(dir, '.github', 'workflow.yml'), 'name: ci');
+      writeFileSync(join(dir, '.hidden-dir', 'secret.txt'), `key=${GOOGLE_KEY}`);
+
+      const result = runDrop(['allow', dir, '--json'], env);
+
+      expect(result.exitCode).toBe(0);
+      const payload = JSON.parse(result.stdout.toString());
+      expect(payload.type).toBe('dir');
+      expect(payload.secret_scan).toBeUndefined();
+
+      closeDb();
+      process.env.DROP_DB = env.DROP_DB;
+      const page = await app.request(`/d/${payload.token}`);
+      const html = await page.text();
+      expect(page.status).toBe(200);
+      expect(html).toContain('README.md');
+      expect(html).not.toContain('.env');
+      expect(html).not.toContain('.github');
+      expect(html).not.toContain('.hidden-dir');
+    } finally {
+      closeDb();
+      delete process.env.DROP_DB;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('directory shares can include hidden files and then scan hidden secrets', () => {
+    const root = mkdtempSync(join(tmpdir(), 'drop-hidden-include-secret-'));
+    try {
+      const env = makeEnv(root);
+      markDaemonRunning(root);
+      const dir = join(root, 'project');
+      mkdirSync(dir);
+      writeFileSync(join(dir, 'README.md'), 'safe readme');
+      writeFileSync(join(dir, '.env'), `STRIPE_SECRET=${STRIPE_KEY}\n`);
+
+      const result = runDrop(['allow', dir, '--include-hidden', '--json'], env);
+
+      expect(result.exitCode).toBe(1);
+      const payload = JSON.parse(result.stdout.toString());
+      expect(payload.error).toContain('Secret scan blocked');
+      expect(payload.secret_scan.blocked).toBe(true);
+      expect(payload.secret_scan.findings[0]).toEqual(expect.objectContaining({
+        path: join(dir, '.env'),
+        rule_id: 'stripe-live-key',
+      }));
+      expect(JSON.stringify(payload)).not.toContain(STRIPE_KEY);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('--include-hidden still respects explicit excludes', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'drop-hidden-include-exclude-'));
+    try {
+      const env = makeEnv(root);
+      markDaemonRunning(root);
+      const dir = join(root, 'project');
+      mkdirSync(dir);
+      mkdirSync(join(dir, '.github'));
+      writeFileSync(join(dir, 'README.md'), 'safe readme');
+      writeFileSync(join(dir, '.env'), `STRIPE_SECRET=${STRIPE_KEY}\n`);
+      writeFileSync(join(dir, '.github', 'workflow.yml'), 'name: ci');
+
+      const result = runDrop(['allow', dir, '--include-hidden', '--exclude', '.env', '--json'], env);
+
+      expect(result.exitCode).toBe(0);
+      const payload = JSON.parse(result.stdout.toString());
+      expect(payload.type).toBe('dir');
+
+      closeDb();
+      process.env.DROP_DB = env.DROP_DB;
+      const page = await app.request(`/d/${payload.token}`);
+      const html = await page.text();
+      expect(page.status).toBe(200);
+      expect(html).toContain('README.md');
+      expect(html).toContain('.github');
+      expect(html).not.toContain('.env');
+    } finally {
+      closeDb();
+      delete process.env.DROP_DB;
       rmSync(root, { recursive: true, force: true });
     }
   });

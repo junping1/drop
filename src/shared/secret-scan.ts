@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'fs';
 import { basename, join } from 'path';
 import { DEFAULT_EXCLUDES } from './constants.js';
+import { directoryDefaultExcludes } from './excludes.js';
 import { isExcluded } from './fs.js';
 import { isSafeSubpath } from './utils.js';
 
@@ -22,6 +23,8 @@ export interface SecretScanResult {
 
 export interface SecretScanPathOptions {
   excludes?: string[];
+  includeHidden?: boolean;
+  useDefaultExcludes?: boolean;
 }
 
 interface SecretRule {
@@ -204,7 +207,13 @@ function scanDirectory(root: string, excludes: string[]): SecretFinding[] {
 
 export function scanPath(path: string, options: SecretScanPathOptions = {}): SecretScanResult {
   if (!existsSync(path)) return { blocked: false, findings: [] };
-  const excludes = [...DEFAULT_EXCLUDES, ...(options.excludes || [])];
+  const useDefaultExcludes = options.useDefaultExcludes !== false;
+  const defaultExcludes = !useDefaultExcludes
+    ? []
+    : options.includeHidden
+      ? directoryDefaultExcludes(true)
+      : DEFAULT_EXCLUDES;
+  const excludes = [...defaultExcludes, ...(options.excludes || [])];
   const lst = lstatSync(path);
 
   if (lst.isSymbolicLink()) {

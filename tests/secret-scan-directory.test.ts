@@ -52,4 +52,27 @@ describe('secret scanner directory traversal', () => {
       rmSync(outside, { recursive: true, force: true });
     }
   });
+
+  test('includeHidden scans dotfiles when using scanner defaults directly', () => {
+    const root = mkdtempSync(join(tmpdir(), 'drop-secret-hidden-'));
+    try {
+      writeFileSync(join(root, '.env'), `AWS_ACCESS_KEY_ID=${AWS_KEY}`);
+
+      const defaultResult = scanPath(root);
+      expect(defaultResult.blocked).toBe(false);
+      expect(defaultResult.findings).toEqual([]);
+
+      const includeHiddenResult = scanPath(root, { includeHidden: true });
+      expect(includeHiddenResult.blocked).toBe(true);
+      expect(includeHiddenResult.findings).toEqual([
+        expect.objectContaining({
+          path: join(root, '.env'),
+          rule_id: 'aws-access-key-id',
+        }),
+      ]);
+      expect(JSON.stringify(includeHiddenResult.findings)).not.toContain(AWS_KEY);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
