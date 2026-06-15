@@ -50,4 +50,32 @@ describe('secret scanner git commits', () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  test('scans secrets on served context lines, not only added lines', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'drop-secret-git-ctx-'));
+    try {
+      git(['init'], repo);
+      git(['config', 'user.email', 'test@example.com'], repo);
+      git(['config', 'user.name', 'Test User'], repo);
+      // Commit a file whose first line already contains a secret.
+      writeFileSync(join(repo, 'config.ts'), `export const key = '${ANTHROPIC_KEY}';\nexport const a = 1;\n`);
+      git(['add', 'config.ts'], repo);
+      git(['commit', '-m', 'initial'], repo);
+
+      // Second commit edits a line below the secret; the secret line is now a
+      // context line in the served diff but must still be flagged.
+      writeFileSync(join(repo, 'config.ts'), `export const key = '${ANTHROPIC_KEY}';\nexport const a = 2;\n`);
+      git(['add', 'config.ts'], repo);
+      git(['commit', '-m', 'tweak'], repo);
+      const commit = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: repo, env: cleanEnv() }).stdout.toString().trim();
+
+      const result = scanGitCommit(repo, commit);
+
+      expect(result.blocked).toBe(true);
+      expect(result.findings.some((f) => f.rule_id === 'anthropic-api-key' && f.path === 'config.ts')).toBe(true);
+      expect(JSON.stringify(result.findings)).not.toContain(ANTHROPIC_KEY);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });
