@@ -67,6 +67,10 @@ describe('secret scanner directory traversal', () => {
       expect(includeHiddenResult.findings).toEqual([
         expect.objectContaining({
           path: join(root, '.env'),
+          rule_id: 'sensitive-filename',
+        }),
+        expect.objectContaining({
+          path: join(root, '.env'),
           rule_id: 'aws-access-key-id',
         }),
       ]);

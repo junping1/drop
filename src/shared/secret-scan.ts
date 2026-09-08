@@ -43,7 +43,11 @@ const SECRET_RULES: SecretRule[] = [
   { id: 'aws-access-key-id', pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g },
 ];
 
-const SENSITIVE_FILENAMES = new Set(['credentials.json', 'secrets.yaml', 'secrets.yml', '.npmrc', '.netrc']);
+const SENSITIVE_FILENAMES = new Set([
+  'credentials.json', 'secrets.yaml', 'secrets.yml', '.npmrc', '.netrc',
+  '.env', 'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519',
+]);
+const SENSITIVE_ENV_ALLOWLIST = new Set(['.env.example', '.env.sample', '.env.template']);
 const SENSITIVE_EXTENSIONS = ['.pem', '.key'];
 const MAX_SCAN_BYTES = 5 * 1024 * 1024;
 
@@ -71,7 +75,8 @@ function pushFinding(findings: SecretFinding[], path: string, line: number, rule
 
 function scanSensitiveFilename(path: string): SecretFinding[] {
   const name = basename(path).toLowerCase();
-  if (SENSITIVE_FILENAMES.has(name) || SENSITIVE_EXTENSIONS.some((ext) => name.endsWith(ext))) {
+  const isSensitiveEnvFile = !SENSITIVE_ENV_ALLOWLIST.has(name) && name.startsWith('.env.');
+  if (SENSITIVE_FILENAMES.has(name) || isSensitiveEnvFile || SENSITIVE_EXTENSIONS.some((ext) => name.endsWith(ext))) {
     return [{
       path,
       line: 1,
@@ -257,13 +262,30 @@ function runGit(args: string[], cwd: string): string {
   return result.stdout.toString();
 }
 
+// Produce the same diff content that git-authorizations.ts serves to viewers
+// (per-file `git diff <hash>~1 <hash> -- <file>`, falling back to
+// `git show <hash> -- <file>` for a root commit), but for the whole commit at
+// once. `git diff <hash>~1 <hash>` compares the merge result against its
+// first parent, so it includes everything a merge brought in — unlike
+// `git show` on a merge commit, which prints a condensed combined diff that
+// omits nearly everything.
+function getCommitDiff(repoPath: string, commitHash: string): string {
+  try {
+    runGit(['rev-parse', '--verify', '--quiet', `${commitHash}~1`], repoPath);
+  } catch {
+    // No parent commit (root commit): fall back to `git show`.
+    return runGit(['show', '--format=', '--no-ext-diff', commitHash], repoPath);
+  }
+  return runGit(['diff', '--no-ext-diff', `${commitHash}~1`, commitHash], repoPath);
+}
+
 export function scanGitCommit(repoPath: string, commitHash: string): SecretScanResult {
   const findings: SecretFinding[] = [];
   // Scan the same content that gets served to viewers. The served diff
   // (src/db/git-authorizations.ts) uses default context, so unchanged context
   // lines are disclosed too — scan added AND context lines, not just '+' lines,
   // or a secret on a context line adjacent to an edit would leak unscanned.
-  const output = runGit(['show', '--format=', '--no-ext-diff', commitHash], repoPath);
+  const output = getCommitDiff(repoPath, commitHash);
   let currentPath = '<git-diff>';
   let newLine = 0;
 

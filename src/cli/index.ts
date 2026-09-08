@@ -62,7 +62,7 @@ function runSecretScanForCli(opts: SecretScanCliOptions, scan: () => SecretScanR
 
   const result = scan();
   if (result.blocked && !opts.force) {
-    writeCliError(opts, 'Secret scan blocked sharing because high-confidence secrets were found.', {
+    writeCliError(opts, 'Secret scan blocked sharing because high-confidence secrets were found. Re-run with --force to share anyway, or --no-secret-scan to skip scanning.', {
       blocked: true,
       findings_count: result.findings.length,
       findings: result.findings,

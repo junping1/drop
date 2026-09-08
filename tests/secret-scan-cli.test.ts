@@ -53,6 +53,7 @@ describe('secret scan CLI integration', () => {
       expect(result.exitCode).toBe(1);
       const payload = JSON.parse(result.stdout.toString());
       expect(payload.error).toContain('Secret scan blocked');
+      expect(payload.error).toContain('--force');
       expect(payload.secret_scan.blocked).toBe(true);
       expect(payload.secret_scan.findings_count).toBe(1);
       expect(payload.secret_scan.findings[0]).toEqual(expect.objectContaining({
@@ -252,10 +253,16 @@ describe('secret scan CLI integration', () => {
       const payload = JSON.parse(result.stdout.toString());
       expect(payload.error).toContain('Secret scan blocked');
       expect(payload.secret_scan.blocked).toBe(true);
-      expect(payload.secret_scan.findings[0]).toEqual(expect.objectContaining({
-        path: join(dir, '.env'),
-        rule_id: 'stripe-live-key',
-      }));
+      expect(payload.secret_scan.findings).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          path: join(dir, '.env'),
+          rule_id: 'sensitive-filename',
+        }),
+        expect.objectContaining({
+          path: join(dir, '.env'),
+          rule_id: 'stripe-live-key',
+        }),
+      ]));
       expect(JSON.stringify(payload)).not.toContain(STRIPE_KEY);
     } finally {
       rmSync(root, { recursive: true, force: true });

@@ -62,4 +62,40 @@ describe('secret scanner', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  test('flags .env and .env.local but not .env.example', () => {
+    const root = mkdtempSync(join(tmpdir(), 'drop-secret-env-'));
+    try {
+      const envFile = join(root, '.env');
+      const envLocalFile = join(root, '.env.local');
+      const envExampleFile = join(root, '.env.example');
+      writeFileSync(envFile, 'SECRET=1');
+      writeFileSync(envLocalFile, 'SECRET=1');
+      writeFileSync(envExampleFile, 'SECRET=changeme');
+
+      const envResult = scanPath(envFile, { excludes: [] });
+      const envLocalResult = scanPath(envLocalFile, { excludes: [] });
+      const envExampleResult = scanPath(envExampleFile, { excludes: [] });
+
+      expect(envResult.findings.map((f) => f.rule_id)).toContain('sensitive-filename');
+      expect(envLocalResult.findings.map((f) => f.rule_id)).toContain('sensitive-filename');
+      expect(envExampleResult.findings.map((f) => f.rule_id)).not.toContain('sensitive-filename');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('flags SSH private key filenames', () => {
+    const root = mkdtempSync(join(tmpdir(), 'drop-secret-sshkey-'));
+    try {
+      const file = join(root, 'id_ed25519');
+      writeFileSync(file, 'not actually a key');
+
+      const result = scanPath(file, { excludes: [] });
+
+      expect(result.findings.map((f) => f.rule_id)).toContain('sensitive-filename');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

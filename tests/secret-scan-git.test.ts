@@ -78,4 +78,55 @@ describe('secret scanner git commits', () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  test('scans a merge commit for secrets introduced on the merged-in branch', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'drop-secret-git-merge-'));
+    try {
+      git(['init'], repo);
+      git(['config', 'user.email', 'test@example.com'], repo);
+      git(['config', 'user.name', 'Test User'], repo);
+      writeFileSync(join(repo, 'README.md'), 'safe');
+      git(['add', 'README.md'], repo);
+      git(['commit', '-m', 'initial'], repo);
+      git(['branch', '-M', 'main'], repo);
+
+      git(['checkout', '-b', 'feature'], repo);
+      writeFileSync(join(repo, 'aws.ts'), `export const key = 'AKIAIOSFODNN7EXAMPLE';\n`);
+      git(['add', 'aws.ts'], repo);
+      git(['commit', '-m', 'add aws key'], repo);
+
+      git(['checkout', 'main'], repo);
+      git(['merge', '--no-ff', '-m', 'merge feature', 'feature'], repo);
+      const mergeCommit = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: repo, env: cleanEnv() }).stdout.toString().trim();
+
+      const result = scanGitCommit(repo, mergeCommit);
+
+      expect(result.blocked).toBe(true);
+      expect(result.findings.some((f) => f.rule_id === 'aws-access-key-id' && f.path === 'aws.ts')).toBe(true);
+      expect(JSON.stringify(result.findings)).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test('scans a root commit via the show fallback', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'drop-secret-git-root-'));
+    try {
+      git(['init'], repo);
+      git(['config', 'user.email', 'test@example.com'], repo);
+      git(['config', 'user.name', 'Test User'], repo);
+      writeFileSync(join(repo, 'aws.ts'), `export const key = 'AKIAIOSFODNN7EXAMPLE';\n`);
+      git(['add', 'aws.ts'], repo);
+      git(['commit', '-m', 'root commit with secret'], repo);
+      const commit = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: repo, env: cleanEnv() }).stdout.toString().trim();
+
+      const result = scanGitCommit(repo, commit);
+
+      expect(result.blocked).toBe(true);
+      expect(result.findings.some((f) => f.rule_id === 'aws-access-key-id' && f.path === 'aws.ts')).toBe(true);
+      expect(JSON.stringify(result.findings)).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });
