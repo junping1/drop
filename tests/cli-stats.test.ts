@@ -11,6 +11,11 @@ function withTempDb(): string {
   closeDb();
   const root = mkdtempSync(join(tmpdir(), 'drop-cli-stats-'));
   process.env.DROP_DB = join(root, 'drop.db');
+  // recordAccessEvent() is called directly below, and it hashes the client
+  // IP with the owner key; getOwnerKey() lazily creates and persists one via
+  // saveConfig() if missing, so isolate the config path too. runDrop() spawns
+  // its subprocess with `{ ...process.env, ...env }`, so this also reaches it.
+  process.env.DROP_CONFIG = join(root, 'config.json');
   return root;
 }
 
@@ -32,6 +37,7 @@ async function runDrop(args: string[], env: Record<string, string | undefined>) 
 afterEach(() => {
   closeDb();
   delete process.env.DROP_DB;
+  delete process.env.DROP_CONFIG;
 });
 
 describe('drop stats CLI', () => {

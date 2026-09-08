@@ -13,12 +13,17 @@ function withTempDb(): string {
   closeDb();
   const root = mkdtempSync(join(tmpdir(), 'drop-access-events-'));
   process.env.DROP_DB = join(root, 'drop.db');
+  // recordAccessEvent() hashes the client IP with the owner key, which
+  // getOwnerKey() lazily generates and persists via saveConfig() if missing
+  // — point it at an isolated file so that never touches the real config.
+  process.env.DROP_CONFIG = join(root, 'config.json');
   return root;
 }
 
 afterEach(() => {
   closeDb();
   delete process.env.DROP_DB;
+  delete process.env.DROP_CONFIG;
 });
 
 describe('access events storage and stats', () => {

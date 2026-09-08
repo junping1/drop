@@ -13,12 +13,17 @@ function withTempDb(): string {
   closeDb();
   const root = mkdtempSync(join(tmpdir(), 'drop-stats-api-'));
   process.env.DROP_DB = join(root, 'drop.db');
+  // getOwnerKey() lazily creates and persists an owner key via saveConfig()
+  // when the config has none — isolate the config path so that never
+  // touches the real ~/.drop/config.json.
+  process.env.DROP_CONFIG = join(root, 'config.json');
   return root;
 }
 
 afterEach(() => {
   closeDb();
   delete process.env.DROP_DB;
+  delete process.env.DROP_CONFIG;
 });
 
 describe('owner-only stats API', () => {

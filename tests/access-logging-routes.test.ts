@@ -11,6 +11,10 @@ function withTempDb(): string {
   closeDb();
   const root = mkdtempSync(join(tmpdir(), 'drop-access-routes-'));
   process.env.DROP_DB = join(root, 'drop.db');
+  // These requests go through access logging, which hashes the client IP
+  // with the owner key; getOwnerKey() lazily creates and persists one via
+  // saveConfig() if missing, so isolate the config path too.
+  process.env.DROP_CONFIG = join(root, 'config.json');
   return root;
 }
 
@@ -33,6 +37,7 @@ function eventRows(): any[] {
 afterEach(() => {
   closeDb();
   delete process.env.DROP_DB;
+  delete process.env.DROP_CONFIG;
 });
 
 describe('access logging routes', () => {

@@ -374,6 +374,8 @@ drop config get base_url
 | `dir_default_ttl` | `86400` | 目录分享默认 TTL，单位秒 |
 | `auto_stop` | `false` | 所有分享过期后是否自动停止 daemon |
 
+配置文件路径和 SQLite 数据库路径都可以通过环境变量覆盖（主要用于测试和隔离环境）：`DROP_CONFIG` 覆盖配置文件路径（默认 `~/.drop/config.json`），`DROP_DB` 覆盖数据库路径（默认 `~/.drop/drop.db`）。
+
 ## 渲染能力
 
 | 类型 | 渲染方式 |
@@ -398,7 +400,7 @@ drop config get base_url
 - 响应包含反爬 header，`robots.txt` 禁止索引。
 - owner 访问使用 HMAC 签名 cookie 和 timing-safe key 比较。
 - 访问日志采用隐私保护设计：不保存原始 IP、完整 User-Agent、完整 Referer、完整目标路径、query、cookies 或 owner key。
-- 当前限流实现为每个客户端身份每分钟 300 次请求。默认忽略可伪造的代理 header；只有在可信反向代理后面运行并设置 `DROP_TRUST_PROXY=1` 时才读取代理 header。
+- 当前限流实现为每个客户端身份每分钟 300 次请求。默认忽略可伪造的代理 header（`CF-Connecting-IP`、`X-Forwarded-For`、`X-Real-IP`），限流和访问日志的客户端哈希都会把所有请求当作来自 `127.0.0.1`；只有在可信反向代理后面运行，并通过配置项 `trust_proxy` 或环境变量 `DROP_TRUST_PROXY=1`（两者任一即可）开启代理信任时，才会读取代理 header。
 
 重要边界：
 

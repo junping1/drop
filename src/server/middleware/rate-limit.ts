@@ -1,4 +1,5 @@
 import type { Context, Next } from 'hono';
+import { isProxyTrusted } from '../../shared/config.js';
 
 const RATE_LIMIT = 300;
 const RATE_WINDOW = 60; // seconds
@@ -25,7 +26,7 @@ export function getClientIpFromHeaders(headers: Headers, trustProxy = false): st
 }
 
 function getClientIp(c: Context): string {
-  return getClientIpFromHeaders(c.req.raw.headers, process.env.DROP_TRUST_PROXY === '1');
+  return getClientIpFromHeaders(c.req.raw.headers, isProxyTrusted());
 }
 
 export async function rateLimitMiddleware(c: Context, next: Next): Promise<Response | void> {

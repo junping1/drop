@@ -1,20 +1,17 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { app } from '../src/server/index.js';
 import { closeDb, getDb } from '../src/db/index.js';
 import { addDirAuthorization } from '../src/db/dir-authorizations.js';
 import { getOwnerKey, saveConfig } from '../src/shared/config.js';
-import { CONFIG_PATH } from '../src/shared/constants.js';
-
-let oldConfig: string | null = null;
 
 function withTempDb(): string {
   closeDb();
-  if (oldConfig === null) oldConfig = existsSync(CONFIG_PATH) ? readFileSync(CONFIG_PATH, 'utf-8') : '';
   const root = mkdtempSync(join(tmpdir(), 'drop-dir-git-api-'));
   process.env.DROP_DB = join(root, 'drop.db');
+  process.env.DROP_CONFIG = join(root, 'config.json');
   return root;
 }
 
@@ -72,15 +69,7 @@ function cookieHeader(response: Response): string {
 afterEach(() => {
   closeDb();
   delete process.env.DROP_DB;
-  if (oldConfig !== null) {
-    if (oldConfig === '') {
-      saveConfig({});
-      rmSync(CONFIG_PATH, { force: true });
-    } else {
-      saveConfig(JSON.parse(oldConfig));
-    }
-    oldConfig = null;
-  }
+  delete process.env.DROP_CONFIG;
 });
 
 describe('directory git API', () => {

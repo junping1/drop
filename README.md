@@ -374,6 +374,8 @@ drop config get base_url
 | `dir_default_ttl` | `86400` | default directory-share TTL in seconds |
 | `auto_stop` | `false` | stop the daemon when all shares expire |
 
+Both the config file and the SQLite database paths can be overridden with environment variables (mainly useful for tests and isolated setups): `DROP_CONFIG` overrides the config file path (default `~/.drop/config.json`), and `DROP_DB` overrides the database path (default `~/.drop/drop.db`).
+
 ## Rendering
 
 | Type | Rendering |
@@ -398,7 +400,7 @@ drop config get base_url
 - Responses include anti-crawler headers and `robots.txt` disallows indexing.
 - Owner access uses HMAC-signed cookies and timing-safe key comparison.
 - Access logging is privacy-preserving: raw IPs, full user agents, full referrers, full target paths, query strings, cookies, and owner keys are not stored.
-- Current rate limiting is 300 requests per minute per client identity. Proxy headers are ignored unless `DROP_TRUST_PROXY=1` is set for a trusted reverse proxy.
+- Current rate limiting is 300 requests per minute per client identity. Proxy headers (`CF-Connecting-IP`, `X-Forwarded-For`, `X-Real-IP`) are ignored, and both rate limiting and access-log client hashing treat every request as coming from `127.0.0.1`, unless proxy trust is enabled via the `trust_proxy` config flag or the `DROP_TRUST_PROXY=1` env var (either is sufficient) for a trusted reverse proxy.
 - Markdown raw HTML is escaped, SVG is rendered as an image preview, and template-controlled metadata is HTML-escaped.
 
 Important boundaries:

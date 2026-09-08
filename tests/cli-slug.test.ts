@@ -3,24 +3,23 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { dirname, join } from 'path';
 import { tmpdir } from 'os';
 import { closeDb } from '../src/db/index.js';
-import { CONFIG_PATH, PID_PATH } from '../src/shared/constants.js';
+import { PID_PATH } from '../src/shared/constants.js';
 
+// PID_PATH has no env override (unlike DROP_DB/DROP_CONFIG); faking it to the
+// current test process's own (live) pid tricks isDaemonRunning() into
+// thinking a daemon is already up, so the CLI subprocess never tries to
+// auto-spawn a real daemon on a real port during these tests.
 let oldPid: string | null = null;
-let oldConfig: string | null = null;
 
 beforeEach(() => {
   mkdirSync(dirname(PID_PATH), { recursive: true });
   oldPid = existsSync(PID_PATH) ? readFileSync(PID_PATH, 'utf-8') : null;
-  oldConfig = existsSync(CONFIG_PATH) ? readFileSync(CONFIG_PATH, 'utf-8') : null;
   writeFileSync(PID_PATH, String(process.pid));
-  writeFileSync(CONFIG_PATH, '{}\n');
 });
 
 afterEach(() => {
   if (oldPid === null) rmSync(PID_PATH, { force: true });
   else writeFileSync(PID_PATH, oldPid);
-  if (oldConfig === null) rmSync(CONFIG_PATH, { force: true });
-  else writeFileSync(CONFIG_PATH, oldConfig);
   closeDb();
   delete process.env.DROP_DB;
 });
@@ -53,7 +52,7 @@ describe('CLI --slug', () => {
     try {
       const file = join(root, 'file.txt');
       writeFileSync(file, 'hello');
-      const env = { DROP_DB: join(root, 'drop.db') };
+      const env = { DROP_DB: join(root, 'drop.db'), DROP_CONFIG: join(root, 'config.json') };
 
       const jsonRun = runDrop(['allow', file, '--slug', 'My_File', '--json'], env);
       expect(jsonRun.exitCode).toBe(0);
@@ -74,7 +73,7 @@ describe('CLI --slug', () => {
   test('share and allow-git emit slug URLs', () => {
     const root = mkdtempSync(join(tmpdir(), 'drop-cli-slug-git-'));
     try {
-      const env = { DROP_DB: join(root, 'drop.db') };
+      const env = { DROP_DB: join(root, 'drop.db'), DROP_CONFIG: join(root, 'config.json') };
       const shareRun = runDrop(['share', '--content', 'hi', '--slug', 'note-slug', '--json'], env);
       expect(shareRun.exitCode).toBe(0);
       expect(JSON.parse(shareRun.stdout.toString()).url).toBe('http://localhost:17173/f/note-slug');
@@ -102,7 +101,7 @@ describe('CLI --slug', () => {
     try {
       const file = join(root, 'file.txt');
       writeFileSync(file, 'hello');
-      const env = { DROP_DB: join(root, 'drop.db') };
+      const env = { DROP_DB: join(root, 'drop.db'), DROP_CONFIG: join(root, 'config.json') };
 
       const failed = runDrop(['allow', file, '--slug', 'bad slug', '--json'], env);
       expect(failed.exitCode).toBe(1);
@@ -120,7 +119,7 @@ describe('CLI --slug', () => {
       const fileB = join(root, 'b.txt');
       writeFileSync(fileA, 'a');
       writeFileSync(fileB, 'b');
-      const env = { DROP_DB: join(root, 'drop.db') };
+      const env = { DROP_DB: join(root, 'drop.db'), DROP_CONFIG: join(root, 'config.json') };
       expect(runDrop(['allow', fileA, '--slug', 'dupe-slug', '--json'], env).exitCode).toBe(0);
 
       const failed = runDrop(['allow', fileB, '--slug', 'dupe-slug', '--json'], env);
@@ -138,7 +137,7 @@ describe('CLI --slug', () => {
     try {
       const file = join(root, 'file.txt');
       writeFileSync(file, 'hello');
-      const env = { DROP_DB: join(root, 'drop.db') };
+      const env = { DROP_DB: join(root, 'drop.db'), DROP_CONFIG: join(root, 'config.json') };
       expect(runDrop(['allow', file, '--slug', 'list-slug', '--json'], env).exitCode).toBe(0);
 
       const listRun = runDrop(['list', '--json'], env);

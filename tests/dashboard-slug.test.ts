@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { app } from '../src/server/index.js';
@@ -7,15 +7,12 @@ import { closeDb } from '../src/db/index.js';
 import { addAuthorization } from '../src/db/authorizations.js';
 import { createShareAlias } from '../src/db/share-aliases.js';
 import { saveConfig } from '../src/shared/config.js';
-import { CONFIG_PATH } from '../src/shared/constants.js';
-
-let oldConfig: string | null = null;
 
 function withTempDb(): string {
   closeDb();
-  oldConfig = existsSync(CONFIG_PATH) ? readFileSync(CONFIG_PATH, 'utf-8') : null;
   const root = mkdtempSync(join(tmpdir(), 'drop-dashboard-slug-'));
   process.env.DROP_DB = join(root, 'drop.db');
+  process.env.DROP_CONFIG = join(root, 'config.json');
   saveConfig({ owner_key: 'owner-secret', base_url: 'https://drop.example' });
   return root;
 }
@@ -23,13 +20,7 @@ function withTempDb(): string {
 afterEach(() => {
   closeDb();
   delete process.env.DROP_DB;
-  if (oldConfig === null) {
-    saveConfig({});
-    rmSync(CONFIG_PATH, { force: true });
-  } else {
-    saveConfig(JSON.parse(oldConfig));
-  }
-  oldConfig = null;
+  delete process.env.DROP_CONFIG;
 });
 
 describe('dashboard slug support', () => {
