@@ -8,6 +8,7 @@ import { extname, basename } from 'path';
 import darkCss from 'highlight.js/styles/github-dark.css' with { type: 'text' };
 import lightCss from 'highlight.js/styles/github.css' with { type: 'text' };
 import { getFileMeta } from '../../shared/fs.js';
+import { htmlEscape } from '../../shared/utils.js';
 import { codePageHtml } from './html-templates.js';
 
 /**
@@ -122,14 +123,16 @@ export function highlightCode(code: string, lang: string): string {
       return hljs.highlight(trimmed, { language: lang }).value;
     }
   } catch {
-    // fall through to auto
+    // fall through to plain text
   }
 
+  // Unknown/unmapped language: never run highlightAuto (it scans ~190
+  // grammars and can block the single-threaded server for tens of seconds
+  // on large inputs). Return HTML-escaped plain text instead.
   try {
-    return hljs.highlightAuto(trimmed).value;
+    return hljs.highlight(trimmed, { language: 'plaintext' }).value;
   } catch {
-    // Fallback: plain escaped text
-    return trimmed.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return htmlEscape(trimmed);
   }
 }
 

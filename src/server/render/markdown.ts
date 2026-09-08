@@ -24,7 +24,10 @@ function getMd(): MarkdownIt {
           return '<pre class="hljs"><code class="hljs">' + hljs.highlight(str, { language: lang }).value + '</code></pre>';
         } catch {}
       }
-      return '<pre class="hljs"><code class="hljs">' + hljs.highlightAuto(str).value + '</code></pre>';
+      // Unknown/unmapped language: never run highlightAuto (it scans ~190
+      // grammars and can block the single-threaded server on large inputs).
+      // Return HTML-escaped plain text instead.
+      return '<pre class="hljs"><code class="hljs">' + hljs.highlight(str, { language: 'plaintext' }).value + '</code></pre>';
     },
   });
 
