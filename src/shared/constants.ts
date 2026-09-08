@@ -3,7 +3,7 @@ import { mkdirSync } from 'fs';
 import { homedir } from 'os';
 
 export const DEFAULT_PORT = 17173;
-export const DEFAULT_HOST = '0.0.0.0';
+export const DEFAULT_HOST = '127.0.0.1';
 export const DEFAULT_TTL = 86400; // 1 day
 export const TOKEN_LENGTH = 16; // bytes, produces 32 hex chars (128 bits)
 export const TIME_FORMAT = '%Y-%m-%d %H:%M'; // strftime-style, used via formatTime()

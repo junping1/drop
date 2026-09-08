@@ -370,6 +370,7 @@ drop config get base_url
 | --- | --- | --- |
 | `base_url` | `http://localhost:17173` | 生成链接时使用的公共 URL 前缀 |
 | `port` | `17173` | 服务监听端口 |
+| `host` | `127.0.0.1` | 服务绑定地址（默认仅本机 loopback；设为 `0.0.0.0` 可开放局域网访问） |
 | `file_ttl` | `86400` | 文件分享默认 TTL，单位秒 |
 | `dir_default_ttl` | `86400` | 目录分享默认 TTL，单位秒 |
 | `auto_stop` | `false` | 所有分享过期后是否自动停止 daemon |
@@ -399,6 +400,7 @@ drop config get base_url
 - owner 访问使用 HMAC 签名 cookie 和 timing-safe key 比较。
 - 访问日志采用隐私保护设计：不保存原始 IP、完整 User-Agent、完整 Referer、完整目标路径、query、cookies 或 owner key。
 - 当前限流实现为每个客户端身份每分钟 300 次请求。默认忽略可伪造的代理 header；只有在可信反向代理后面运行并设置 `DROP_TRUST_PROXY=1` 时才读取代理 header。
+- 自动启动的 daemon 默认只绑定 `127.0.0.1`（仅本机 loopback）。运行 `drop config set host 0.0.0.0` 或 `drop serve --host 0.0.0.0` 可开放局域网访问。
 
 重要边界：
 
@@ -424,7 +426,7 @@ tailscale funnel 17173
 drop config set base_url https://your-domain.example
 ```
 
-使用 Cloudflare named tunnel 时，建议把 ingress 指向 `127.0.0.1`，不要写 `localhost`。这样可以避免连接器在 Drop 绑定到 `0.0.0.0` / IPv4 时误走 IPv6 loopback：
+Drop 默认绑定到 `127.0.0.1`，因此把隧道指向 `127.0.0.1` 通常开箱即用；只有隧道连接器本身不在这台机器上时，才需要执行 `drop config set host 0.0.0.0`（或 `drop serve --host 0.0.0.0`）。使用 Cloudflare named tunnel 时，建议把 ingress 指向 `127.0.0.1`，不要写 `localhost`，这样可以避免连接器误走 IPv6 loopback：
 
 ```yaml
 ingress:

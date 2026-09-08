@@ -1,5 +1,5 @@
 export const VALID_CONFIG_KEYS = [
-  'base_url', 'port', 'file_ttl', 'dir_default_ttl', 'auto_stop',
+  'base_url', 'port', 'host', 'file_ttl', 'dir_default_ttl', 'auto_stop',
   'password', 'default_excludes', 'pygments.style', 'pygments.linenos',
 ] as const;
 
@@ -42,6 +42,13 @@ function parsePort(value: string): number {
   return port;
 }
 
+function validateHost(value: string): string {
+  if (!value || /\s/.test(value)) {
+    throw new Error('host must be a non-empty string with no whitespace');
+  }
+  return value;
+}
+
 function validateBaseUrl(value: string): string {
   let url: URL;
   try {
@@ -73,6 +80,8 @@ export function applyConfigValue(cfg: Record<string, unknown>, key: ConfigKey | 
   const lastKey = parts[parts.length - 1];
   if (key === 'port') {
     target[lastKey] = parsePort(value);
+  } else if (key === 'host') {
+    target[lastKey] = validateHost(value);
   } else if (key === 'file_ttl' || key === 'dir_default_ttl') {
     target[lastKey] = parsePositiveInteger(key, value);
   } else if (key === 'auto_stop' || key === 'pygments.linenos') {

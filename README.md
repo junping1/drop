@@ -370,6 +370,7 @@ drop config get base_url
 | --- | --- | --- |
 | `base_url` | `http://localhost:17173` | public URL prefix for generated links |
 | `port` | `17173` | server listen port |
+| `host` | `127.0.0.1` | server bind address (loopback only; set to `0.0.0.0` for LAN access) |
 | `file_ttl` | `86400` | default file-share TTL in seconds |
 | `dir_default_ttl` | `86400` | default directory-share TTL in seconds |
 | `auto_stop` | `false` | stop the daemon when all shares expire |
@@ -400,6 +401,7 @@ drop config get base_url
 - Access logging is privacy-preserving: raw IPs, full user agents, full referrers, full target paths, query strings, cookies, and owner keys are not stored.
 - Current rate limiting is 300 requests per minute per client identity. Proxy headers are ignored unless `DROP_TRUST_PROXY=1` is set for a trusted reverse proxy.
 - Markdown raw HTML is escaped, SVG is rendered as an image preview, and template-controlled metadata is HTML-escaped.
+- The auto-started daemon binds to `127.0.0.1` (loopback only) by default. Run `drop config set host 0.0.0.0` or `drop serve --host 0.0.0.0` to allow LAN access.
 
 Important boundaries:
 
@@ -425,7 +427,7 @@ tailscale funnel 17173
 drop config set base_url https://your-domain.example
 ```
 
-For a Cloudflare named tunnel, point ingress at `127.0.0.1` instead of `localhost` so the connector does not accidentally try IPv6 loopback when Drop is bound to `0.0.0.0` / IPv4:
+Drop binds to `127.0.0.1` by default, so a tunnel pointed at `127.0.0.1` works out of the box; only run `drop config set host 0.0.0.0` (or `drop serve --host 0.0.0.0`) if the tunnel connector itself lives outside this machine. For a Cloudflare named tunnel, point ingress at `127.0.0.1` instead of `localhost` so the connector does not accidentally try IPv6 loopback:
 
 ```yaml
 ingress:

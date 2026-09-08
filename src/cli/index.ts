@@ -82,6 +82,10 @@ function withSecretScanMetadata<T extends Record<string, unknown>>(payload: T, m
 }
 
 
+function resolveHost(cfg: Record<string, unknown>, opts?: { host?: string }): string {
+  return (cfg.host as string | undefined) || opts?.host || DEFAULT_HOST;
+}
+
 function applySlug(
   cfg: Record<string, unknown>,
   type: 'file' | 'dir' | 'git',
@@ -119,11 +123,11 @@ program
     process.on('SIGTERM', () => { removePid(); process.exit(0); });
     process.on('SIGINT', () => { removePid(); process.exit(0); });
 
+    const cfg = loadConfig();
     const port = parseInt(opts.port, 10);
-    const host = opts.host;
+    const host = resolveHost(cfg, opts);
 
     if (!opts.foreground) {
-      const cfg = loadConfig();
       if (cfg.auto_stop) {
         startCleanupTimer();
       }
@@ -211,7 +215,7 @@ program
         },
       );
 
-      if (!isDaemonRunning()) await startDaemon(port, DEFAULT_HOST);
+      if (!isDaemonRunning()) await startDaemon(port, resolveHost(cfg));
     } else if (isFile) {
       const ttl = opts.ttl ? parseInt(opts.ttl, 10) : (cfg.file_ttl || DEFAULT_TTL);
       const { token, filename, isNew } = addAuthorization(path, ttl, opts.live);
@@ -237,7 +241,7 @@ program
         },
       );
 
-      if (!isDaemonRunning()) await startDaemon(port, DEFAULT_HOST);
+      if (!isDaemonRunning()) await startDaemon(port, resolveHost(cfg));
     }
   });
 
@@ -301,7 +305,7 @@ program
       },
     );
 
-    if (!isDaemonRunning()) await startDaemon(port, DEFAULT_HOST);
+    if (!isDaemonRunning()) await startDaemon(port, resolveHost(cfg));
   });
 
 // allow-git
@@ -346,7 +350,7 @@ program
         },
       );
 
-      if (!isDaemonRunning()) await startDaemon(port, DEFAULT_HOST);
+      if (!isDaemonRunning()) await startDaemon(port, resolveHost(cfg));
     } catch (e: any) {
       outputShareError(e.message, { json: opts.json, qr: opts.qr });
       process.exit(1);
