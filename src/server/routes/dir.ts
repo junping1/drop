@@ -454,7 +454,11 @@ dirRoutes.get('/d/:token/*', (c) => {
   let filepath = '';
   const idx = fullPath.indexOf(prefix);
   if (idx !== -1) {
-    filepath = decodeURIComponent(fullPath.slice(idx + prefix.length));
+    try {
+      filepath = decodeURIComponent(fullPath.slice(idx + prefix.length));
+    } catch {
+      return c.text('Bad Request', 400);
+    }
   }
 
   // Skip API routes (they should be handled above but just in case)

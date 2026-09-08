@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { DirEntry, FilePreviewData } from '../lib/types';
   import { fetchFile, fetchGitInfo, prefetch, getCached } from '../lib/api';
+  import { buildDirFileUrl, decodeDirFilePath } from '../lib/url';
   import SearchBox from './SearchBox.svelte';
   import FileTree from './FileTree.svelte';
   import Preview from './Preview.svelte';
@@ -64,7 +65,7 @@
     mobileView = 'preview';
 
     if (pushHistory) {
-      const newUrl = basePath + '/d/' + token + '/' + relPath;
+      const newUrl = buildDirFileUrl(basePath, token, relPath);
       history.pushState({ file: relPath }, '', newUrl);
     }
 
@@ -142,7 +143,7 @@
       const prefix = basePath + '/d/' + token + '/';
       const path = window.location.pathname;
       if (path.indexOf(prefix) === 0) {
-        const relPath = decodeURIComponent(path.substring(prefix.length));
+        const relPath = decodeDirFilePath(path.substring(prefix.length));
         if (relPath) {
           currentFile = ''; // reset so loadFile doesn't skip
           loadFile(relPath, false); // don't push state — we're responding to a pop
