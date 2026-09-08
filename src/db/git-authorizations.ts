@@ -84,16 +84,27 @@ export function getGitCommitInfo(repoPath: string, commitHash: string): GitCommi
   };
 
   const numstatOutput = runGit(
-    ['diff-tree', '--no-commit-id', '-r', '--numstat', commitHash],
+    ['diff-tree', '--no-commit-id', '-r', '-m', '--first-parent', '--numstat', commitHash],
     repoPath,
   );
 
+  // `-m` makes diff-tree emit one numstat row per parent; `--first-parent`
+  // limits which parent's diff that is, but for a single commit it does not
+  // collapse the per-parent rows into one. For a merge that resolves a real
+  // conflict (the same path touched relative to more than one parent) the
+  // path can still appear more than once with different added/deleted
+  // counts. Dedupe by path, keeping the first occurrence, so callers never
+  // render or count the same file twice.
   const files: GitFileInfo[] = [];
+  const seenPaths = new Set<string>();
   for (const line of numstatOutput.trim().split('\n')) {
     if (!line) continue;
     const parts = line.split('\t', 3);
     if (parts.length === 3) {
-      files.push({ path: parts[2], added: parts[0], deleted: parts[1], diff: '' });
+      const path = parts[2];
+      if (seenPaths.has(path)) continue;
+      seenPaths.add(path);
+      files.push({ path, added: parts[0], deleted: parts[1], diff: '' });
     }
   }
 

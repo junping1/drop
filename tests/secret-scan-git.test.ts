@@ -78,4 +78,55 @@ describe('secret scanner git commits', () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  test('flags a commit that adds a sensitive filename even with benign content', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'drop-secret-git-filename-'));
+    try {
+      git(['init'], repo);
+      git(['config', 'user.email', 'test@example.com'], repo);
+      git(['config', 'user.name', 'Test User'], repo);
+      writeFileSync(join(repo, 'README.md'), 'safe');
+      git(['add', 'README.md'], repo);
+      git(['commit', '-m', 'initial'], repo);
+
+      // Content has no secret-shaped value, so only the filename rule can catch it.
+      writeFileSync(join(repo, 'credentials.json'), '{"note": "placeholder"}\n');
+      git(['add', 'credentials.json'], repo);
+      git(['commit', '-m', 'add credentials file'], repo);
+      const commit = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: repo, env: cleanEnv() }).stdout.toString().trim();
+
+      const result = scanGitCommit(repo, commit);
+
+      expect(result.blocked).toBe(true);
+      expect(result.findings.some((f) => f.rule_id === 'sensitive-filename' && f.path === 'credentials.json')).toBe(true);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test('caps the scanned diff size and reports a truncation finding instead of silently passing', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'drop-secret-git-cap-'));
+    try {
+      git(['init'], repo);
+      git(['config', 'user.email', 'test@example.com'], repo);
+      git(['config', 'user.name', 'Test User'], repo);
+      writeFileSync(join(repo, 'README.md'), 'safe');
+      git(['add', 'README.md'], repo);
+      git(['commit', '-m', 'initial'], repo);
+
+      // 6 MB of benign content: bigger than the 5 MB scan cap.
+      const bigContent = 'x'.repeat(6 * 1024 * 1024);
+      writeFileSync(join(repo, 'big.txt'), bigContent);
+      git(['add', 'big.txt'], repo);
+      git(['commit', '-m', 'add large file'], repo);
+      const commit = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: repo, env: cleanEnv() }).stdout.toString().trim();
+
+      const result = scanGitCommit(repo, commit);
+
+      expect(result.blocked).toBe(true);
+      expect(result.findings.some((f) => f.rule_id === 'scan-truncated')).toBe(true);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  }, 20000);
 });

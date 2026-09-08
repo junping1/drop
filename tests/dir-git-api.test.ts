@@ -373,6 +373,88 @@ describe('directory git API', () => {
     }
   });
 
+  test('lists merged-in files for a merge commit', async () => {
+    const root = withTempDb();
+    try {
+      const repo = join(root, 'repo-merge');
+      mkdirSync(repo);
+      git(['init'], repo);
+      git(['config', 'core.hooksPath', '/dev/null'], repo);
+      git(['config', 'user.email', 'test@example.com'], repo);
+      git(['config', 'user.name', 'Test User'], repo);
+      writeFileSync(join(repo, 'README.md'), 'readme\n');
+      git(['add', 'README.md'], repo);
+      git(['commit', '-m', 'init'], repo);
+      const mainBranch = git(['symbolic-ref', '--short', 'HEAD'], repo);
+
+      git(['checkout', '-b', 'feature'], repo);
+      writeFileSync(join(repo, 'feature.txt'), 'new feature\n');
+      git(['add', 'feature.txt'], repo);
+      git(['commit', '-m', 'add feature'], repo);
+
+      git(['checkout', mainBranch], repo);
+      git(['merge', '--no-ff', '-m', 'Merge feature into main', 'feature'], repo);
+      const mergeSha = git(['rev-parse', 'HEAD'], repo);
+
+      const token = addDirAuthorization(repo, 60, []).token;
+      const diff = await app.request(`/d/${token}/api/git/commit/${mergeSha}`);
+      const diffJson = await diff.json() as any;
+
+      expect(diff.status).toBe(200);
+      expect(diffJson.file_count).toBe(1);
+      expect(diffJson.diff_html).toContain('feature.txt');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('lists a conflicted-merge file exactly once, not duplicated per parent', async () => {
+    const root = withTempDb();
+    try {
+      const repo = join(root, 'repo-conflict-merge');
+      mkdirSync(repo);
+      git(['init'], repo);
+      git(['config', 'core.hooksPath', '/dev/null'], repo);
+      git(['config', 'user.email', 'test@example.com'], repo);
+      git(['config', 'user.name', 'Test User'], repo);
+      writeFileSync(join(repo, 'file.txt'), 'base\n');
+      git(['add', 'file.txt'], repo);
+      git(['commit', '-m', 'init'], repo);
+      const mainBranch = git(['symbolic-ref', '--short', 'HEAD'], repo);
+
+      git(['checkout', '-b', 'feature'], repo);
+      writeFileSync(join(repo, 'file.txt'), 'base\nfeature line\n');
+      git(['commit', '-am', 'feature change'], repo);
+
+      git(['checkout', mainBranch], repo);
+      writeFileSync(join(repo, 'file.txt'), 'base\nmain line\n');
+      git(['commit', '-am', 'main change'], repo);
+
+      // Both branches touched file.txt differently: a real merge conflict,
+      // not the clean disjoint-file case. Resolve it and commit the merge.
+      const merge = Bun.spawnSync(['git', 'merge', '--no-ff', '-m', 'merge conflict', 'feature'], { cwd: repo, env: cleanGitEnv() });
+      expect(merge.exitCode).not.toBe(0); // conflict expected
+      writeFileSync(join(repo, 'file.txt'), 'base\nresolved\n');
+      git(['add', 'file.txt'], repo);
+      git(['commit', '-m', 'merge conflict resolved'], repo);
+      const mergeSha = git(['rev-parse', 'HEAD'], repo);
+
+      const token = addDirAuthorization(repo, 60, []).token;
+      const diff = await app.request(`/d/${token}/api/git/commit/${mergeSha}`);
+      const diffJson = await diff.json() as any;
+
+      expect(diff.status).toBe(200);
+      expect(diffJson.file_count).toBe(1);
+      // The path appears once as a <span class="file-path"> summary heading
+      // per listed file; a duplicate numstat row would produce two <details>
+      // blocks (two headings) for the same path.
+      const headingMatches = diffJson.diff_html.match(/<span class="file-path">file\.txt<\/span>/g) || [];
+      expect(headingMatches.length).toBe(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('does not leak contents of excluded files through commit diffs', async () => {
     const root = withTempDb();
     try {
