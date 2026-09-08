@@ -36,6 +36,22 @@ const dirRoutes = new Hono();
 const DIR_GIT_HISTORY_COOKIE = 'drop_dir_git_history';
 const DIR_GIT_HISTORY_SCOPE = 'dir_git_history';
 
+// Bun's Response rejects header values containing bytes outside Latin-1, so a
+// bare `filename="${name}"` throws for any non-ASCII file name (and a raw `"`
+// would break out of the quoted string even when ASCII). Build an ASCII-only
+// fallback plus an RFC 5987 extended parameter carrying the full Unicode name.
+const RAW_FILENAME_ASCII_UNSAFE = /[^\x20-\x7e]|["\\]/g;
+const RAW_FILENAME_EXT_UNSAFE = /['()*!~]/g;
+
+function rawContentDisposition(kind: 'inline' | 'attachment', filename: string): string {
+  const fallback = filename.replace(RAW_FILENAME_ASCII_UNSAFE, '_');
+  const extended = encodeURIComponent(filename).replace(
+    RAW_FILENAME_EXT_UNSAFE,
+    (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase(),
+  );
+  return `${kind}; filename="${fallback}"; filename*=UTF-8''${extended}`;
+}
+
 interface DirGitHistoryUnlockPayload {
   token: string;
   scope: typeof DIR_GIT_HISTORY_SCOPE;
@@ -430,14 +446,29 @@ dirRoutes.get('/d/:token/raw', (c) => {
   const absPath = validateDirPath(row!.dirpath, relPath, excludes);
   if (!absPath) return c.text('Access denied', 403);
 
-  const contentType = guessMime(absPath);
+  const guessedType = guessMime(absPath);
+  const isExecutableDocument =
+    guessedType === 'text/html' ||
+    guessedType === 'application/xhtml+xml' ||
+    guessedType === 'image/svg+xml';
 
   const data = readFileSync(absPath);
   recordRouteAccess(c, row!.token, 'dir', 'raw_view', relPath);
+
+  if (isExecutableDocument) {
+    return new Response(data, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Content-Disposition': rawContentDisposition('attachment', basename(absPath)),
+        'Content-Security-Policy': 'sandbox',
+      },
+    });
+  }
+
   return new Response(data, {
     headers: {
-      'Content-Type': contentType,
-      'Content-Disposition': `inline; filename="${basename(absPath)}"`,
+      'Content-Type': guessedType,
+      'Content-Disposition': rawContentDisposition('inline', basename(absPath)),
     },
   });
 });
