@@ -4,18 +4,20 @@
  * Build script: compiles Svelte frontend, embeds assets, and produces a standalone binary.
  *
  * Usage: bun run scripts/build.ts [--target <target>] [--skip-web]
- * Targets: linux-x64 (default), linux-arm64, darwin-x64, darwin-arm64
+ * Targets: linux-x64, linux-arm64, darwin-x64, darwin-arm64
+ * Default: the host platform/arch (falls back to linux-x64 if unrecognised).
  */
 
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { resolveHostTarget } from './build-target';
 
 const projectRoot = join(import.meta.dir, '..');
 const distDir = join(projectRoot, 'dist');
 const target = process.argv.includes('--target')
   ? process.argv[process.argv.indexOf('--target') + 1]
-  : 'linux-x64';
+  : resolveHostTarget(process.platform, process.arch);
 const skipWeb = process.argv.includes('--skip-web');
 
 if (skipWeb) {

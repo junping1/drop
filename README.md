@@ -178,9 +178,9 @@ git clone https://github.com/junping1/drop.git
 cd drop
 bun install
 
-# Build the default Linux x64 binary.
+# Build a binary for your platform (target defaults to the host).
 bun run build
-cp dist/drop-linux-x64 ~/.local/bin/drop
+cp dist/drop-* ~/.local/bin/drop   # or `cp dist/drop` on macOS
 
 # Or build for a specific platform.
 bun run scripts/build.ts --target linux-x64
@@ -452,7 +452,7 @@ bun install
 bun run dev:serve          # start server in foreground
 bun run build:web          # build the Svelte directory browser
 bun run dev:web            # run the Svelte dev server
-bun run build              # compile the default linux-x64 standalone binary
+bun run build              # compile a standalone binary for the host platform
 bun run scripts/build.ts --target darwin-x64   # build a specific target
 bun run build:release      # build all release assets expected by install.sh
 bun run verify             # run the project verification entrypoint
