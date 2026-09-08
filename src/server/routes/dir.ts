@@ -20,6 +20,7 @@ import { dirBrowserShellHtml } from '../render/html-templates.js';
 import { getRenderer } from '../render/index.js';
 import { guessMime } from '../../shared/mime.js';
 import { recordRouteAccess } from '../access-logging.js';
+import { contentDisposition } from '../content-disposition.js';
 import type { DirAuthorization } from '../../shared/types.js';
 import {
   DEFAULT_DIR_GIT_COMMIT_LIMIT,
@@ -437,7 +438,7 @@ dirRoutes.get('/d/:token/raw', (c) => {
   return new Response(data, {
     headers: {
       'Content-Type': contentType,
-      'Content-Disposition': `inline; filename="${basename(absPath)}"`,
+      'Content-Disposition': contentDisposition('inline', basename(absPath)),
     },
   });
 });

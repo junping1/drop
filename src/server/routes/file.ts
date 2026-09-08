@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import { existsSync, readFileSync, statSync } from 'fs';
+import { basename } from 'path';
 import { lookupAuthorization } from '../../db/authorizations.js';
 import { resolveShareToken } from '../../db/share-aliases.js';
 import { STATUS_NOT_FOUND, STATUS_EXPIRED, MAX_RENDER_SIZE } from '../../shared/constants.js';
@@ -12,6 +13,7 @@ import { getRenderer } from '../render/index.js';
 import { handleExpired } from '../middleware/auth.js';
 import { guessMime } from '../../shared/mime.js';
 import { recordRouteAccess } from '../access-logging.js';
+import { contentDisposition } from '../content-disposition.js';
 
 const fileRoutes = new Hono();
 
@@ -80,7 +82,10 @@ function serveFileHandler(c: any) {
   const data = readFileSync(filepath);
   recordRouteAccess(c, token, 'file', 'page_view');
   return new Response(data, {
-    headers: { 'Content-Type': mime },
+    headers: {
+      'Content-Type': mime,
+      'Content-Disposition': contentDisposition('inline', basename(filepath)),
+    },
   });
 }
 
