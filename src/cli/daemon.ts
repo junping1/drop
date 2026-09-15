@@ -4,21 +4,36 @@ import { cleanupExpiredShares } from '../db/cleanup.js';
 import { hasActiveAuthorizations } from '../db/authorizations.js';
 import { DEFAULT_HOST, LOG_PATH, PID_PATH, ensureStateDir } from '../shared/constants.js';
 
-export function readPid(): number | null {
-  if (!existsSync(PID_PATH)) return null;
-  const content = readFileSync(PID_PATH, 'utf-8').trim();
+export function readPid(pidPath: string = PID_PATH): number | null {
+  if (!existsSync(pidPath)) return null;
+  const content = readFileSync(pidPath, 'utf-8').trim();
   if (!content) return null;
   return parseInt(content, 10);
 }
 
-export function writePid(): void {
-  ensureStateDir();
-  writeFileSync(PID_PATH, String(process.pid));
+export function writePid(pidPath: string = PID_PATH): void {
+  mkdirSync(dirname(pidPath), { recursive: true });
+  writeFileSync(pidPath, String(process.pid));
 }
 
-export function removePid(): void {
-  if (existsSync(PID_PATH)) {
-    try { unlinkSync(PID_PATH); } catch { /* ignore */ }
+/**
+ * Delete the pid file only if it still belongs to `ownPid` (defaults to the
+ * current process). This prevents a process that fails to become the daemon
+ * (for example because the port is already bound) from deleting the pid
+ * file that belongs to the real, already-running daemon.
+ *
+ * `pidPath` defaults to the real daemon pid path and is overridable so tests
+ * can exercise this against an isolated temp file instead of ~/.drop/drop.pid.
+ */
+export function removePid(ownPid: number = process.pid, pidPath: string = PID_PATH): void {
+  if (!existsSync(pidPath)) return;
+  try {
+    const content = readFileSync(pidPath, 'utf-8').trim();
+    if (content === String(ownPid)) {
+      unlinkSync(pidPath);
+    }
+  } catch {
+    /* ignore */
   }
 }
 
@@ -30,7 +45,7 @@ export function isDaemonRunning(): boolean {
     return true;
   } catch (e: any) {
     if (e.code === 'ESRCH') {
-      removePid();
+      removePid(pid);
       return false;
     }
     return true;
@@ -104,7 +119,7 @@ export function stopDaemon(): boolean {
     return true;
   } catch (e: any) {
     if (e.code === 'ESRCH') {
-      removePid();
+      removePid(pid);
       return false;
     }
     return false;

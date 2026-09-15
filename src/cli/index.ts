@@ -82,6 +82,10 @@ function withSecretScanMetadata<T extends Record<string, unknown>>(payload: T, m
 }
 
 
+function resolvePort(cfg: Record<string, unknown>, opts: { port?: string } = {}): number {
+  return cfg.port ? Number(cfg.port) : parseInt(opts.port ?? String(DEFAULT_PORT), 10);
+}
+
 function applySlug(
   cfg: Record<string, unknown>,
   type: 'file' | 'dir' | 'git',
@@ -114,31 +118,42 @@ program
   .option('--tunnel', 'Reserved for future built-in tunnel support; currently run cloudflared/ngrok manually', false)
   .action(async (opts) => {
     ensureStateDir();
+
+    const cfg = loadConfig();
+    const port = resolvePort(cfg, opts);
+    const host = opts.host;
+
+    const { app } = await import('../server/index.js');
+
+    try {
+      Bun.serve({
+        port,
+        hostname: host,
+        fetch: app.fetch,
+      });
+      // Bun.serve() keeps the event loop (and the process) alive on its own in
+      // both source and compiled-binary modes, so no explicit keep-alive loop
+      // is needed here.
+    } catch (e: any) {
+      console.error(`Error: failed to bind to ${host}:${port} — ${e?.message ?? e}`);
+      process.exit(1);
+    }
+
+    // Only claim the pid file once we actually own the port — otherwise a
+    // failed bind (for example EADDRINUSE because a daemon is already
+    // running) would delete the real daemon's pid file.
     writePid();
-    process.on('exit', removePid);
+    process.on('exit', () => removePid());
     process.on('SIGTERM', () => { removePid(); process.exit(0); });
     process.on('SIGINT', () => { removePid(); process.exit(0); });
 
-    const port = parseInt(opts.port, 10);
-    const host = opts.host;
-
     if (!opts.foreground) {
-      const cfg = loadConfig();
       if (cfg.auto_stop) {
         startCleanupTimer();
       }
     }
 
-    const { app } = await import('../server/index.js');
     console.log(`drop serving on http://${host}:${port} (pid ${process.pid})`);
-    Bun.serve({
-      port,
-      hostname: host,
-      fetch: app.fetch,
-    });
-    // Bun.serve() keeps the event loop (and the process) alive on its own in
-    // both source and compiled-binary modes, so no explicit keep-alive loop is
-    // needed here.
   });
 
 // allow
@@ -361,6 +376,7 @@ program
   .action((opts) => {
     const now = Date.now() / 1000;
     const cfg = loadConfig();
+    const port = resolvePort(cfg);
     const allShares: any[] = [];
 
     for (const row of listAuthorizations()) {
@@ -372,7 +388,7 @@ program
         status: remaining > 0 ? STATUS_ACTIVE : STATUS_EXPIRED,
         remaining: Math.max(0, Math.floor(remaining)),
         expires_at: row.expires_at,
-        url: buildUrl(cfg, 'f', publicId, DEFAULT_PORT),
+        url: buildUrl(cfg, 'f', publicId, port),
       });
     }
 
@@ -389,7 +405,7 @@ program
         status: remaining > 0 ? STATUS_ACTIVE : STATUS_EXPIRED,
         remaining: Math.max(0, Math.floor(remaining)),
         expires_at: row.expires_at,
-        url: buildUrl(cfg, 'git', publicId, DEFAULT_PORT),
+        url: buildUrl(cfg, 'git', publicId, port),
       });
     }
 
@@ -402,7 +418,7 @@ program
         status: remaining > 0 ? STATUS_ACTIVE : STATUS_EXPIRED,
         remaining: Math.max(0, Math.floor(remaining)),
         expires_at: row.expires_at,
-        url: buildUrl(cfg, 'd', publicId, DEFAULT_PORT),
+        url: buildUrl(cfg, 'd', publicId, port),
       });
     }
 
@@ -544,10 +560,10 @@ program
   .action((opts) => {
     const key = getOwnerKey();
     const cfg = loadConfig();
-    const baseUrl = cfg.base_url as string | undefined;
-    const url = baseUrl
-      ? `${baseUrl.replace(/\/$/, '')}/dashboard?key=${key}`
-      : `http://localhost:${DEFAULT_PORT}/dashboard?key=${key}`;
+    const port = resolvePort(cfg);
+    let url = buildUrl(cfg, 'dashboard', '', port, 'localhost');
+    if (url.endsWith('/')) url = url.slice(0, -1);
+    url += `?key=${key}`;
     outputShareResult(
       { url },
       {
