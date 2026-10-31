@@ -130,11 +130,12 @@ program
     }
 
     const { app } = await import('../server/index.js');
+    const { createFetchHandler } = await import('../server/serve.js');
     console.log(`drop serving on http://${host}:${port} (pid ${process.pid})`);
     Bun.serve({
       port,
       hostname: host,
-      fetch: app.fetch,
+      fetch: createFetchHandler(app),
     });
     // Bun.serve() keeps the event loop (and the process) alive on its own in
     // both source and compiled-binary modes, so no explicit keep-alive loop is
