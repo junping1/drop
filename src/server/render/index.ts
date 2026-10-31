@@ -3,7 +3,7 @@
  * or null for types that should be served raw (images, PDF, binary).
  */
 
-import { readFileSync, statSync } from 'fs';
+import { readFileSync } from 'fs';
 import { extname, basename } from 'path';
 import { getFileType, getFileMeta } from '../../shared/fs.js';
 import { htmlEscape } from '../../shared/utils.js';
@@ -20,7 +20,7 @@ const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.o
  * Get rendered HTML for a file, or null if it should be served raw.
  * Returns null for images, PDFs, and unknown binary files.
  */
-export function getRenderer(filepath: string): ((filepath: string, head?: number | null, tail?: number | null) => string) | null {
+export function getRenderer(filepath: string): ((filepath: string, head?: number | null, tail?: number | null, rawUrl?: string) => string) | null {
   const fileType = getFileType(filepath);
 
   switch (fileType) {
@@ -43,20 +43,9 @@ export function getRenderer(filepath: string): ((filepath: string, head?: number
   }
 }
 
-function renderMedia(filepath: string): string {
+function renderMedia(filepath: string, _head?: number | null, _tail?: number | null, rawUrl?: string): string {
   const ext = extname(filepath).toLowerCase();
   const meta = getFileMeta(filepath);
-  const st = statSync(filepath);
-
-  // For very large files (>50MB), return null to serve raw
-  if (st.size > 50 * 1024 * 1024) {
-    // Can't return null from here since type says string, so serve a download link
-    return mediaPageHtml({
-      displayPath: meta.display_path,
-      fileMeta: `${meta.size} \u00b7 ${meta.mtime}`,
-      mediaHtml: `<a href="#" style="color:var(--link)">File too large for inline preview (${meta.size})</a>`,
-    });
-  }
 
   // Determine content type
   const mimeTypes: Record<string, string> = {
@@ -68,13 +57,10 @@ function renderMedia(filepath: string): string {
   };
   const contentType = mimeTypes[ext] || 'application/octet-stream';
 
-  const data = readFileSync(filepath);
-  const b64 = data.toString('base64');
-  const dataUri = `data:${contentType};base64,${b64}`;
-
   const isAudio = AUDIO_EXTS.has(ext);
   const tag = isAudio ? 'audio' : 'video';
-  const mediaHtml = `<${tag} controls><source src="${dataUri}" type="${contentType}">Your browser does not support this media.</${tag}>`;
+  const src = htmlEscape(rawUrl || '');
+  const mediaHtml = `<${tag} controls><source src="${src}" type="${contentType}">Your browser does not support this media.</${tag}>`;
 
   return mediaPageHtml({
     displayPath: meta.display_path,

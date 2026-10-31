@@ -104,4 +104,34 @@ describe('access logging routes', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+  test('HEAD requests and mid-file Range requests are not recorded as views', async () => {
+    const root = withTempDb();
+    try {
+      const file = join(root, 'clip.mp4');
+      writeFileSync(file, Buffer.alloc(4096, 1));
+      const dir = join(root, 'dir');
+      mkdirSync(dir);
+      writeFileSync(join(dir, 'clip.mp4'), Buffer.alloc(4096, 1));
+      const fileToken = addAuthorization(file, 60).token;
+      const dirToken = addDirAuthorization(dir, 60, []).token;
+
+      for (const path of [`/f/${fileToken}`, `/f/${fileToken}/raw`, `/d/${dirToken}/raw?path=clip.mp4`]) {
+        const url = `http://drop.test${path}`;
+        await app.fetch(new Request(url, { method: 'HEAD' }));
+        await app.fetch(new Request(url, { method: 'HEAD', headers: { range: 'bytes=0-' } }));
+        await app.fetch(new Request(url, { headers: { range: 'bytes=1024-2047' } }));
+        await app.fetch(new Request(url, { headers: { range: 'bytes=-100' } }));
+        await app.fetch(new Request(url, { headers: { range: 'bytes=99999-' } }));   // 416
+      }
+      expect(eventRows()).toEqual([]);
+
+      // A request starting at byte 0 (plain GET, or a player's first bytes=0- probe) counts once.
+      await app.fetch(new Request(`http://drop.test/f/${fileToken}/raw`));
+      await app.fetch(new Request(`http://drop.test/f/${fileToken}/raw`, { headers: { range: 'bytes=0-' } }));
+      await app.fetch(new Request(`http://drop.test/d/${dirToken}/raw?path=clip.mp4`, { headers: { range: 'bytes=0-1' } }));
+      expect(eventRows().map((r) => r.event_type)).toEqual(['raw_view', 'raw_view', 'raw_view']);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

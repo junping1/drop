@@ -93,8 +93,19 @@ export function recordAccessEvent(input: RecordAccessEventInput): void {
   );
 }
 
-function countableTypes(includeLive = false): string[] {
-  return includeLive ? ['page_view', 'raw_view', 'live_poll'] : ['page_view', 'raw_view'];
+// For file shares, `raw_view` is the browser auto-fetching a sub-resource of
+// a page that was already counted as one `page_view` (e.g. the <video>/
+// <audio> `src` on a media page, or the size-cap fallback). Counting it
+// again would double the headline view count for every media/oversized file
+// visit. For directory (and git) shares, `raw_view` is recorded once per
+// distinct file previewed inside the browser and is the primary signal of
+// engagement with that share, so it stays part of the headline count there.
+// `raw_view` rows are never dropped — this only affects which event types
+// feed the `views`/`unique` totals; `by_event_type` below is unfiltered and
+// always shows the full breakdown.
+function countableTypesCondition(includeLive = false): string {
+  const liveClause = includeLive ? " OR event_type = 'live_poll'" : '';
+  return `(event_type = 'page_view' OR (event_type = 'raw_view' AND share_type != 'file')${liveClause})`;
 }
 
 function sinceWhere(opts: AccessStatsOptions, prefix = ''): { sql: string; params: any[] } {
@@ -103,14 +114,13 @@ function sinceWhere(opts: AccessStatsOptions, prefix = ''): { sql: string; param
 }
 
 export function getAccessStats(token: string, opts: AccessStatsOptions = {}): AccessStats {
-  const types = countableTypes(opts.includeLive);
+  const condition = countableTypesCondition(opts.includeLive);
   const since = sinceWhere(opts);
-  const placeholders = types.map(() => '?').join(', ');
   const totals = getDb().query(`
     SELECT COUNT(*) AS views, COUNT(DISTINCT client_hash) AS unique_count, MAX(created_at) AS last_access_at
     FROM access_events
-    WHERE token = ? AND outcome = 'success' AND event_type IN (${placeholders})${since.sql}
-  `).get(token, ...types, ...since.params) as { views: number; unique_count: number; last_access_at: number | null };
+    WHERE token = ? AND outcome = 'success' AND ${condition}${since.sql}
+  `).get(token, ...since.params) as { views: number; unique_count: number; last_access_at: number | null };
   const byRows = getDb().query(`
     SELECT event_type, COUNT(*) AS cnt
     FROM access_events

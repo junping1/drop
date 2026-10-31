@@ -5,7 +5,7 @@
 
 import { Hono, type Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
-import { existsSync, statSync, readFileSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { join, basename } from 'path';
 import { lookupDirAuthorization } from '../../db/dir-authorizations.js';
 import { resolveShareToken } from '../../db/share-aliases.js';
@@ -18,8 +18,8 @@ import { jsSafeJson, isSafeSubpath } from '../../shared/utils.js';
 import { handleExpired, safeCompare, signAuthValue, verifyAuthValue } from '../middleware/auth.js';
 import { dirBrowserShellHtml } from '../render/html-templates.js';
 import { getRenderer } from '../render/index.js';
-import { guessMime } from '../../shared/mime.js';
 import { recordRouteAccess } from '../access-logging.js';
+import { rawFileResponse } from '../raw-response.js';
 import type { DirAuthorization } from '../../shared/types.js';
 import {
   DEFAULT_DIR_GIT_COMMIT_LIMIT,
@@ -430,16 +430,10 @@ dirRoutes.get('/d/:token/raw', (c) => {
   const absPath = validateDirPath(row!.dirpath, relPath, excludes);
   if (!absPath) return c.text('Access denied', 403);
 
-  const contentType = guessMime(absPath);
+  if (!statSync(absPath).isFile()) return c.text('Not a file', 400);
 
-  const data = readFileSync(absPath);
   recordRouteAccess(c, row!.token, 'dir', 'raw_view', relPath);
-  return new Response(data, {
-    headers: {
-      'Content-Type': contentType,
-      'Content-Disposition': `inline; filename="${basename(absPath)}"`,
-    },
-  });
+  return rawFileResponse(c, absPath);
 });
 
 // Catch-all for deep links: /d/:token/* (MUST be last)
