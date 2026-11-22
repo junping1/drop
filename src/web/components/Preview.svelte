@@ -3,6 +3,7 @@
   import { formatSize, formatDate } from '../lib/format';
   import { fade } from 'svelte/transition';
   import CodePreview from './CodePreview.svelte';
+  import HtmlRenderPreview from './HtmlRenderPreview.svelte';
   import ImagePreview from './ImagePreview.svelte';
   import PdfPreview from './PdfPreview.svelte';
   import MediaPreview from './MediaPreview.svelte';
@@ -40,6 +41,13 @@
   let fileMtime = $derived(data?.mtime ?? treeNode?.mtime ?? 0);
   let fileName = $derived(relPath ? relPath.split('/').pop() || '' : '');
 
+  // HTML files: Source (highlighted, default) or Preview (sandboxed render).
+  // `?view=preview` in the page URL opens previews directly.
+  let htmlView = $state<'source' | 'preview'>(
+    typeof location !== 'undefined' && new URLSearchParams(location.search).get('view') === 'preview' ? 'preview' : 'source',
+  );
+  let renderUrl = $derived(data?.type === 'html' ? data.render_url || '' : '');
+
   let infoLine = $derived(() => {
     const parts: string[] = [];
     if (fileName) parts.push(fileName);
@@ -69,10 +77,18 @@
   <div class="preview-header-bar">
     <Breadcrumb {relPath} {onExpandDir} />
     <span class="file-info">{infoLine()}</span>
+    {#if renderUrl}
+      <div class="view-toggle" role="group" aria-label="View mode">
+        <button type="button" class:active={htmlView === 'source'} aria-pressed={htmlView === 'source'} onclick={() => (htmlView = 'source')}>Source</button>
+        <button type="button" class:active={htmlView === 'preview'} aria-pressed={htmlView === 'preview'} onclick={() => (htmlView = 'preview')}>Preview</button>
+      </div>
+    {/if}
   </div>
   {#key relPath}
     <div class="preview-content-fade" in:fade={{ duration: 150 }}>
-      {#if data.type === 'html'}
+      {#if data.type === 'html' && renderUrl && htmlView === 'preview'}
+        <HtmlRenderPreview url={renderUrl} {relPath} />
+      {:else if data.type === 'html'}
         <CodePreview content={data.content || ''} {relPath} {onNavigate} />
       {:else if data.type === 'image'}
         <ImagePreview url={data.url || ''} alt={relPath} />

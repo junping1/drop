@@ -11,6 +11,8 @@ export interface FilePreviewData {
   type: 'image' | 'pdf' | 'html' | 'media' | 'binary';
   url?: string;
   content?: string;
+  /** Sandboxed live-render URL, present only for previewable HTML files. */
+  render_url?: string;
   filename?: string;
   size?: number;
   mtime?: number;

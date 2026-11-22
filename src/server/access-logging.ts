@@ -10,6 +10,7 @@ export function recordRouteAccess(
   eventType: AccessEventType,
   targetPath?: string | null,
 ): void {
+  if (isFollowUpByteRequest(c)) return;
   const cfg = loadConfig();
   const trustProxy = cfg.trust_proxy === true;
   recordAccessEvent({
@@ -22,4 +23,19 @@ export function recordRouteAccess(
     referer: c.req.header('referer'),
     targetPath,
   });
+}
+
+/**
+ * Whether a request is a follow-up fetch of bytes the client already started
+ * reading — a HEAD probe, or a Range that does not begin at byte 0 (media
+ * seeking/buffering, suffix ranges). Those are not new views; access logging
+ * skips them so one playback is not counted dozens of times.
+ */
+export function isFollowUpByteRequest(c: Context): boolean {
+  if (c.req.method === 'HEAD') return true;
+  const range = c.req.header('range');
+  if (!range) return false;
+  const m = /^\s*bytes=(\d*)-/i.exec(range);
+  if (!m) return false;
+  return m[1] === '' || parseInt(m[1], 10) > 0;
 }

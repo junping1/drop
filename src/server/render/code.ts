@@ -8,7 +8,8 @@ import { extname, basename } from 'path';
 import darkCss from 'highlight.js/styles/github-dark.css' with { type: 'text' };
 import lightCss from 'highlight.js/styles/github.css' with { type: 'text' };
 import { getFileMeta } from '../../shared/fs.js';
-import { codePageHtml } from './html-templates.js';
+import { htmlEscape } from '../../shared/utils.js';
+import { codePageHtml, type HtmlPreviewToggle } from './html-templates.js';
 
 /**
  * Returns CSS for both dark and light themes using prefers-color-scheme.
@@ -133,7 +134,21 @@ export function highlightCode(code: string, lang: string): string {
   }
 }
 
-export function renderCode(filepath: string, head?: number | null, tail?: number | null): string {
+export function renderCode(
+  filepath: string,
+  head?: number | null,
+  tail?: number | null,
+  _rawUrl?: string,
+  htmlPreview?: HtmlPreviewToggle,
+): string {
+  const meta = getFileMeta(filepath);
+  const fileMeta = `${meta.size} \u00b7 ${meta.mtime} (mtime) \u00b7 ${meta.ctime} (ctime)`;
+
+  // Preview view: no need to read or highlight the source.
+  if (htmlPreview?.view === 'preview') {
+    return codePageHtml({ displayPath: meta.display_path, fileMeta, highlightedCode: '', highlightCss: '', htmlPreview });
+  }
+
   let lines = readFileSync(filepath, 'utf-8').split('\n');
 
   if (head != null) {
@@ -146,13 +161,13 @@ export function renderCode(filepath: string, head?: number | null, tail?: number
   const lang = extToLang(filepath);
   const highlighted = highlightCode(code, lang);
 
-  const meta = getFileMeta(filepath);
   const highlightCss = getHighlightCss();
 
   return codePageHtml({
     displayPath: meta.display_path,
-    fileMeta: `${meta.size} \u00b7 ${meta.mtime} (mtime) \u00b7 ${meta.ctime} (ctime)`,
+    fileMeta,
     highlightedCode: `<pre class="hljs"><code class="hljs">${highlighted}</code></pre>`,
     highlightCss,
+    htmlPreview,
   });
 }

@@ -75,11 +75,74 @@ ${opts.body}
 </html>`;
 }
 
+/**
+ * Preview/Source toggle for HTML file pages. The preview is an iframe on the
+ * render route with sandbox="allow-scripts allow-forms" only: never allow-same-origin,
+ * so shared scripts cannot reach drop's origin.
+ */
+export interface HtmlPreviewToggle {
+  sourceUrl: string;
+  previewUrl: string;
+  renderUrl: string;
+  view: 'source' | 'preview';
+}
+
 export interface CodePageOpts {
   displayPath: string;
   fileMeta: string;
   highlightedCode: string;
   highlightCss: string;
+  htmlPreview?: HtmlPreviewToggle;
+}
+
+const HTML_PREVIEW_TOGGLE_CSS = `
+  .file-header.has-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .file-header.has-toggle .file-title { min-width: 0; }
+  .view-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .view-toggle a {
+    padding: 4px 12px;
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+  .view-toggle a + a { border-left: 1px solid var(--border); }
+  .view-toggle a.active {
+    background: var(--bg);
+    color: var(--text-header);
+    font-weight: 500;
+  }
+  .html-preview-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+  }
+  .html-preview-frame {
+    display: block;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    background: #fff;
+  }`;
+
+function htmlPreviewToggleHtml(t: HtmlPreviewToggle): string {
+  const isPreview = t.view === 'preview';
+  return `<nav class="view-toggle" aria-label="View mode">
+      <a href="${attr(t.sourceUrl)}"${isPreview ? '' : ' class="active" aria-current="page"'}>Source</a>
+      <a href="${attr(t.previewUrl)}"${isPreview ? ' class="active" aria-current="page"' : ''}>Preview</a>
+    </nav>`;
 }
 
 export function codePageHtml(opts: CodePageOpts): string {
@@ -108,6 +171,7 @@ export function codePageHtml(opts: CodePageOpts): string {
   .file-content {
     overflow-x: auto;
   }
+  ${opts.htmlPreview ? HTML_PREVIEW_TOGGLE_CSS : ''}
   ${opts.highlightCss}
   .hljs {
     background: var(--bg) !important;
@@ -134,7 +198,7 @@ export function codePageHtml(opts: CodePageOpts): string {
       padding: 8px 12px;
     }
   }`,
-    body: `
+    body: opts.htmlPreview ? codePageWithToggleBody(opts, opts.htmlPreview) : `
   <div class="file-header">
     <div class="file-path">${h(opts.displayPath)}</div>
     <div class="file-meta">${h(opts.fileMeta)}</div>
@@ -143,6 +207,28 @@ export function codePageHtml(opts: CodePageOpts): string {
     ${opts.highlightedCode}
   </div>`,
   });
+}
+
+function codePageWithToggleBody(opts: CodePageOpts, t: HtmlPreviewToggle): string {
+  const header = `
+  <div class="file-header has-toggle">
+    <div class="file-title">
+      <div class="file-path">${h(opts.displayPath)}</div>
+      <div class="file-meta">${h(opts.fileMeta)}</div>
+    </div>
+    ${htmlPreviewToggleHtml(t)}
+  </div>`;
+  if (t.view === 'preview') {
+    // The page fills the viewport; the iframe takes all space below the header.
+    return `
+  <div class="html-preview-page">${header}
+    <iframe class="html-preview-frame" sandbox="allow-scripts allow-forms" src="${attr(t.renderUrl)}" title="${attr(opts.displayPath)}"></iframe>
+  </div>`;
+  }
+  return `${header}
+  <div class="file-content">
+    ${opts.highlightedCode}
+  </div>`;
 }
 
 export interface MarkdownPageOpts {
@@ -1195,6 +1281,31 @@ export function dirBrowserShellHtml(opts: DirBrowserShellOpts): string {
     white-space: nowrap;
     flex-shrink: 0;
   }
+
+  /* HTML Source / Preview toggle */
+  .view-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .view-toggle button {
+    font: inherit;
+    font-size: 12px;
+    padding: 2px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .view-toggle button + button { border-left: 1px solid var(--border); }
+  .view-toggle button.active {
+    background: var(--bg);
+    color: var(--text-header);
+    font-weight: 500;
+  }
+  .html-render-frame { background: #fff; }
 
   /* Preview content */
   .preview-content-fade {
